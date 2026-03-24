@@ -1,0 +1,36 @@
+{
+    "ssh-username": "root",
+    "ssh-password": "Embe1mpls",
+    "esst-srv2-arm": "esst-srv2-arm",
+    "esst-srv2-arm-password": "Embe1mpls",
+    "ttbg": "ttbg-shell012.juniper.net",
+    "ttsv": "ttsv-shell012.juniper.net",
+    "cred":"sshivang",
+    "pwd": "03Juniper@2026",
+    "devices": [
+        {
+            "name": "snpsrx4100c",
+            "vm": "snpsrx4100c.englab.juniper.net",
+            "type": "highend",
+            "routing": "double-hop"
+        },  
+        {
+            "name": "snpsrx380e",
+            "vm": "snpsrx380e.englab.juniper.net",
+            "type": "branch",
+            "routing": "double-hop"
+        },
+        {
+            "name": "esst-srv71-vsrx01",
+            "vm": "esst-srv71-vsrx01.englab.juniper.net",
+            "type": "vsrx",
+            "routing": "single-hop"
+        },
+        {
+            "name": "snpsrx5800x-b",
+            "vm": "snpsrx5800x-b.englab.juniper.net",
+            "type": "spc3",
+            "routing": "double-hop"
+        } 
+    ]
+}
