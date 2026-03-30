@@ -42,6 +42,13 @@ Thumbs.db
 *.log
 .backend.pid
 
-# Test files
-test_*.py
+# Test files (keep connectivity test)
+test_ssh*.py
+test_legacy.py
+test_manual*.py
+test_paramiko*.py
+test_parser.py
+test_ttbg*.py
+test_arm*.py
+test_new*.py
 stability_test*

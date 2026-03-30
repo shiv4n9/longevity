@@ -3,7 +3,7 @@ from typing import Optional
 import os
 
 class Settings(BaseSettings):
-    # Database
+    # Database - use localhost for local development, postgres for Docker
     database_url: str = "postgresql://postgres:postgres@localhost:5432/longevity"
     
     # SSH Credentials

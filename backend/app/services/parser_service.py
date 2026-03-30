@@ -31,7 +31,13 @@ class ParserService:
     
     @staticmethod
     def parse_security_monitoring(output: str) -> List[Dict[str, str]]:
-        """Parse 'show security monitoring' output for standard devices"""
+        """Parse 'show security monitoring' output for standard devices
+        
+        Handles both numeric values and N/A for CP sessions (common in vSRX)
+        Example output:
+        FPC PIC CPU Mem   Flow_Current  Flow_Max    CP_Current  CP_Max
+         0   0   0  90         0        12582912       N/A        N/A
+        """
         if not output or len(output.strip()) < 20:
             return []
         
@@ -39,21 +45,40 @@ class ParserService:
         for line in output.strip().split('\n'):
             parts = line.strip().split()
             
-            if not parts or len(parts) < 8:
+            if not parts or len(parts) < 5:  # Need at least FPC, PIC, CPU, Mem, Flow
                 continue
             
             # Skip headers and prompts
             if any(x in line for x in ["FPC", "Flow", "session", ">", "#", "show security"]):
                 continue
             
-            # Validate data line
+            # Validate data line - first 4 parts should be digits (FPC, PIC, CPU, Mem)
             if parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit() and parts[3].isdigit():
                 try:
+                    cpu = int(parts[2])
+                    memory = int(parts[3])
+                    
+                    # Parse flow sessions (parts[4])
+                    flow_session_current = None
+                    if len(parts) > 4:
+                        try:
+                            flow_session_current = int(parts[4])
+                        except ValueError:
+                            pass
+                    
+                    # Parse CP sessions (parts[6]) - handle N/A
+                    cp_session_current = None
+                    if len(parts) > 6:
+                        try:
+                            cp_session_current = int(parts[6])
+                        except ValueError:
+                            pass
+                    
                     parsed_data.append({
-                        'cpu': int(parts[2]),
-                        'memory': int(parts[3]),
-                        'flow_session_current': int(parts[4]),
-                        'cp_session_current': int(parts[6]) if len(parts) > 6 else 0
+                        'cpu': cpu,
+                        'memory': memory,
+                        'flow_session_current': flow_session_current,
+                        'cp_session_current': cp_session_current
                     })
                 except ValueError:
                     continue
@@ -62,7 +87,14 @@ class ParserService:
     
     @staticmethod
     def parse_security_monitoring_spc3(output: str) -> List[Dict[str, str]]:
-        """Parse 'show security monitoring' output for SPC3 devices"""
+        """Parse 'show security monitoring' output for SPC3 devices
+        
+        For SPC3 devices, we look for PIC 1 data (any FPC with PIC 1)
+        Example output:
+        FPC PIC CPU Mem        current        maximum        current        maximum
+          3   0   0  41              0       13107200              0       15728640
+          3   1   0  68              0       26214400              0       31457280
+        """
         if not output or len(output.strip()) < 20:
             return []
         
@@ -71,24 +103,39 @@ class ParserService:
         for line in output.strip().split('\n'):
             parts = line.strip().split()
             
-            # Look for FPC 1 PIC 1
-            if len(parts) >= 4 and parts[0] == "1" and parts[1] == "1":
-                if parts[2].isdigit() and parts[3].isdigit():
-                    cpu = int(parts[2])
-                    mem = int(parts[3])
+            # Look for any FPC with PIC 1 (parts[1] == "1")
+            # Format: FPC PIC CPU Mem ...
+            if len(parts) >= 4:
+                # Check if this is a data line (first two parts are digits)
+                if parts[0].isdigit() and parts[1].isdigit():
+                    # Check if PIC is 1
+                    if parts[1] == "1":
+                        if parts[2].isdigit() and parts[3].isdigit() and cpu is None:
+                            cpu = int(parts[2])
+                            mem = int(parts[3])
+                            # Get flow sessions from column 4 if available
+                            if len(parts) > 4 and parts[4].isdigit():
+                                flow_current = int(parts[4])
+                            # Get CP sessions from column 6 if available
+                            if len(parts) > 6 and parts[6].isdigit():
+                                cp_current = int(parts[6])
             
-            # Look for Total Sessions
+            # Look for Total Sessions line
             if "Total Sessions:" in line or "total sessions:" in line.lower():
                 for i, part in enumerate(parts):
                     if "sessions:" in part.lower() and len(parts) > i + 3:
                         try:
-                            flow_current = int(parts[i + 1])
-                            cp_current = int(parts[i + 3])
+                            # If we haven't found flow/cp sessions yet, use Total Sessions
+                            if flow_current is None:
+                                flow_current = int(parts[i + 1])
+                            if cp_current is None:
+                                cp_current = int(parts[i + 3])
                         except ValueError:
                             pass
                         break
         
-        if all(v is not None for v in [cpu, mem, flow_current, cp_current]):
+        # Return data if we have at least CPU and memory
+        if cpu is not None and mem is not None:
             return [{
                 'cpu': cpu,
                 'memory': mem,
