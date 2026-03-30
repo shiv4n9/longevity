@@ -12,13 +12,17 @@ from app.core.websocket_manager import manager
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
-async def run_collection_job(job_id: UUID, device_filter: str):
+async def run_collection_job(job_id: UUID, device_filter: str, device_name: str = None):
     """Background task for metric collection"""
     import traceback
     from sqlalchemy import select, update
     from app.core.database import AsyncSessionLocal
     
     print(f"[BACKGROUND] Starting collection job {job_id}")
+    if device_name:
+        print(f"[BACKGROUND] Collecting single device: {device_name}")
+    else:
+        print(f"[BACKGROUND] Collecting devices with filter: {device_filter}")
     
     try:
         async with AsyncSessionLocal() as db:
@@ -39,7 +43,12 @@ async def run_collection_job(job_id: UUID, device_filter: str):
             # Run collection
             collection_service = CollectionService()
             print(f"[BACKGROUND] Starting metric collection...")
-            result = await collection_service.collect_all_metrics(db, device_filter, progress_callback)
+            result = await collection_service.collect_all_metrics(
+                db, 
+                device_filter, 
+                device_name,  # Pass device_name
+                progress_callback
+            )
             print(f"[BACKGROUND] Collection result: {result}")
             
             # Update job status to completed
@@ -88,7 +97,11 @@ async def trigger_collection(
     await db.refresh(job)
     
     # Start background task using asyncio
-    asyncio.create_task(run_collection_job(job.id, job_create.device_filter))
+    asyncio.create_task(run_collection_job(
+        job.id, 
+        job_create.device_filter,
+        job_create.device_name  # Pass device_name
+    ))
     
     return job
 

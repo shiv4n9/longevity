@@ -96,17 +96,27 @@ class CollectionService:
         self,
         db: AsyncSession,
         device_filter: Optional[str] = None,
+        device_name: Optional[str] = None,
         progress_callback=None
     ) -> Dict[str, Any]:
         """
-        Collect metrics from all devices concurrently (true parallelism).
+        Collect metrics from devices concurrently (true parallelism).
         
+        Args:
+            device_filter: Filter by device type (highend, vsrx, branch, spc3, all)
+            device_name: Filter by specific device name (e.g., snpsrx4100c)
+            progress_callback: Callback for progress updates
         """
         from sqlalchemy import select
         
         # Get devices to process
         query = select(Device).where(Device.status == 'active')
-        if device_filter and device_filter != 'all':
+        
+        # Filter by specific device name if provided
+        if device_name:
+            query = query.where(Device.name == device_name)
+        # Otherwise filter by device type
+        elif device_filter and device_filter != 'all':
             query = query.where(Device.device_type == device_filter)
         
         result = await db.execute(query)
@@ -115,9 +125,15 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Execute all device collections concurrently
+        # Limit concurrency to 5 devices at a time to prevent SSH jump-host multiplexing limits (MaxSessions=10)
+        sem = asyncio.Semaphore(5)
+        
+        async def bounded_collect(dev):
+            async with sem:
+                return await self.collect_device_metrics(dev, db, progress_callback)
+                
         tasks = [
-            self.collect_device_metrics(device, db, progress_callback)
+            bounded_collect(device)
             for device in devices
         ]
         
