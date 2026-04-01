@@ -801,6 +801,34 @@ input:checked + .slider:before {
   text-overflow: ellipsis;
 }
 
+.device-card-subtitle {
+  padding: 0 1.5rem 0.5rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.active-device-label {
+  background: #f3f4f6;
+  padding: 0.25rem 0.75rem;
+  border-radius: 8px;
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+}
+
+.active-device-label.active {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.active-device-label.inactive {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
 .device-type-badge {
   font-size: 0.75rem;
   font-weight: 800;

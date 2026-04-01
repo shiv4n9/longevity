@@ -50,6 +50,7 @@ class MetricsService:
                 "model": metric.model,
                 "junos_version": metric.junos_version,
                 "routing_engine": metric.routing_engine,
+                "platform": metric.platform,
                 "cpu_usage": metric.cpu_usage,
                 "memory_usage": metric.memory_usage,
                 "flow_session_current": metric.flow_session_current,

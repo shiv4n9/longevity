@@ -13,6 +13,7 @@ class Metric(Base):
     model = Column(String(255))
     junos_version = Column(String(100))
     routing_engine = Column(String(255))
+    platform = Column(String(255))  # Computed platform name (model for SRX, routing_engine for vSRX)
     cpu_usage = Column(Integer)
     memory_usage = Column(Integer)
     flow_session_current = Column(BigInteger)

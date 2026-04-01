@@ -7,6 +7,7 @@ class MetricBase(BaseModel):
     model: Optional[str] = None
     junos_version: Optional[str] = None
     routing_engine: Optional[str] = None
+    platform: Optional[str] = None
     cpu_usage: Optional[int] = None
     memory_usage: Optional[int] = None
     flow_session_current: Optional[int] = None

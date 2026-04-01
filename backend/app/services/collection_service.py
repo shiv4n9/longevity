@@ -54,6 +54,16 @@ class CollectionService:
             hostname, model, junos = self.parser.parse_show_version(outputs.get('version', ''))
             routing_engine = self.parser.parse_chassis_hardware(outputs.get('chassis', ''))
             
+            # Compute platform name
+            # For vSRX: use routing_engine (e.g., "VSRX-16CPU-32G memory")
+            # For physical SRX: use model in uppercase (e.g., "srx4200" -> "SRX4200")
+            if device.device_type == "vsrx" and routing_engine:
+                platform = routing_engine
+            elif model:
+                platform = model.upper()
+            else:
+                platform = None
+            
             # Parse security monitoring based on device type
             if device.device_type == "spc3":
                 security_data = self.parser.parse_security_monitoring_spc3(outputs.get('monitoring', ''))
@@ -72,6 +82,7 @@ class CollectionService:
                 model=model,
                 junos_version=junos,
                 routing_engine=routing_engine,
+                platform=platform,
                 cpu_usage=sec_data.get('cpu'),
                 memory_usage=sec_data.get('memory'),
                 flow_session_current=sec_data.get('flow_session_current'),

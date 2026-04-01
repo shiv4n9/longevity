@@ -49,9 +49,25 @@ function App() {
   const [viewMode, setViewMode] = useState('grid')
 
   const filteredAndSortedDevices = useMemo(() => {
-    return DEVICES.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
-      .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' }))
-  }, [deviceFilter])
+    // First filter by device type
+    const filtered = DEVICES.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
+    
+    // Enrich devices with platform info from metrics
+    const enrichedDevices = filtered.map(device => {
+      const metric = allMetrics.find(m => m.device_name === device.name)
+      // Use platform from metrics if available, otherwise fallback to device name
+      const platform = metric?.platform || device.name.toUpperCase()
+      const isActive = metric && metric.cpu_usage !== null && metric.cpu_usage !== undefined
+      return { ...device, platform, metric, isActive }
+    })
+    
+    // Sort by platform name, then by device name
+    return enrichedDevices.sort((a, b) => {
+      const platformCompare = a.platform.localeCompare(b.platform, undefined, { numeric: true, sensitivity: 'base' })
+      if (platformCompare !== 0) return platformCompare
+      return a.name.localeCompare(b.name)
+    })
+  }, [deviceFilter, allMetrics])
 
   const loadHistoricalMetrics = async (deviceId) => {
     try {
@@ -336,8 +352,13 @@ function App() {
                 >
                   <div className={`card-top-accent accent-${d.type}`}></div>
                   <div className="device-card-header">
-                    <h3>{d.name}</h3>
+                    <h3>{d.platform}</h3>
                     <span className={`device-type-badge type-${d.type}`}>{d.type.toUpperCase()}</span>
+                  </div>
+                  <div className="device-card-subtitle">
+                    <span className={`active-device-label ${d.isActive ? 'active' : 'inactive'}`}>
+                      {d.name} {d.isActive ? '✓' : '○'}
+                    </span>
                   </div>
                   <div className="device-card-body">
                     {(() => {
@@ -385,7 +406,10 @@ function App() {
                         const dMetric = allMetrics.find(m => m.device_name === d.name || m.hostname?.includes(d.name))
                         return (
                           <tr key={d.name} onClick={() => setSelectedDevice(d)} style={{ animationDelay: `${index * 0.03}s` }} className="slide-up">
-                            <td className="font-bold">{d.name}</td>
+                            <td className="font-bold">
+                              <div>{d.platform}</div>
+                              <div style={{fontSize: '0.75rem', color: '#888', marginTop: '0.25rem'}}>{d.name}</div>
+                            </td>
                             <td><span className={`device-type-badge type-${d.type}`}>{d.type.toUpperCase()}</span></td>
                             {dMetric ? (
                               <>
@@ -410,7 +434,10 @@ function App() {
           <>
             <div className="device-hero glass-card slide-up stagger-1">
               <div className="device-identity">
-                <h2>{selectedDevice.name}</h2>
+                <h2>{selectedDevice.platform}</h2>
+                <div style={{fontSize: '0.9rem', color: '#6b7280', marginTop: '0.25rem', fontWeight: 500}}>
+                  Active Device: {selectedDevice.name}
+                </div>
                 <span className="device-badge">{selectedDevice.type.toUpperCase()} Firewall</span>
               </div>
               <div className={`status-pill glow-${health.status}`}>
@@ -423,7 +450,7 @@ function App() {
               <div className="empty-state glass-card slide-up stagger-2">
                 <div className="empty-icon float-anim">⚡</div>
                 <h3>Waiting for Telemetry</h3>
-                <p>Click "Refresh Now" to instantaneously poll live metrics for {selectedDevice.name}.</p>
+                <p>Click "Refresh Now" to instantaneously poll live metrics for {selectedDevice.platform} ({selectedDevice.name}).</p>
               </div>
             ) : (
           <>
