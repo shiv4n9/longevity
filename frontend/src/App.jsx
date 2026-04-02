@@ -394,8 +394,15 @@ function App() {
     
     const dumps = [];
     const lines = output.split('\n');
+    let currentPath = '/var/crash'; // default path
     
     for (const line of lines) {
+      // Check if line is a directory path
+      if (line.trim().endsWith(':')) {
+        currentPath = line.trim().replace(':', '');
+        continue;
+      }
+      
       // Try to match the line with the file listing pattern
       // Looking for: -rw-r--r--  1 root  wheel  962077195 Mar 31 04:20 core-srxpfe-snpsrx4300b-node-0-1774955271.tgz
       const match = line.match(/-[\w-]+\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\S+\s+\d+\s+[\d:]+)\s+(.+\.tgz)/);
@@ -421,13 +428,10 @@ function App() {
           color = 'blue';
         }
         
-        // Convert bytes to readable format
-        const bytesNum = parseInt(bytes);
-        const sizeInMB = (bytesNum / (1024 * 1024)).toFixed(2);
-        const sizeInGB = (bytesNum / (1024 * 1024 * 1024)).toFixed(2);
-        const size = sizeInGB >= 1 ? `${sizeInGB} GB` : `${sizeInMB} MB`;
+        // Full path to the core dump file
+        const fullPath = `${currentPath}/${filename}`;
         
-        dumps.push({ filename, size, datetime, type, color, bytes: bytesNum });
+        dumps.push({ filename, path: fullPath, datetime, type, color, bytes: parseInt(bytes) });
       }
     }
     
@@ -937,8 +941,8 @@ function App() {
                       <span className="dump-value dump-filename">{dump.filename}</span>
                     </div>
                     <div className="dump-info-row">
-                      <span className="dump-label">💾 Size</span>
-                      <span className="dump-value">{dump.size}</span>
+                      <span className="dump-label">📂 Path</span>
+                      <span className="dump-value dump-path">{dump.path}</span>
                     </div>
                     <div className="dump-info-row">
                       <span className="dump-label">🕐 Date</span>
