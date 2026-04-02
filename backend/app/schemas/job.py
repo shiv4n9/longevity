@@ -6,6 +6,7 @@ from typing import Optional
 class JobCreate(BaseModel):
     device_filter: Optional[str] = "all"
     device_name: Optional[str] = None  # For single device collection
+    device_names: Optional[list[str]] = None  # For multiple device collection
 
 class JobResponse(BaseModel):
     id: UUID

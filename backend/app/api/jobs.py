@@ -12,14 +12,16 @@ from app.core.websocket_manager import manager
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
-async def run_collection_job(job_id: UUID, device_filter: str, device_name: str = None):
+async def run_collection_job(job_id: UUID, device_filter: str, device_name: str = None, device_names: list[str] = None):
     """Background task for metric collection"""
     import traceback
     from sqlalchemy import select, update
     from app.core.database import AsyncSessionLocal
     
     print(f"[BACKGROUND] Starting collection job {job_id}")
-    if device_name:
+    if device_names:
+        print(f"[BACKGROUND] Collecting multiple devices: {device_names}")
+    elif device_name:
         print(f"[BACKGROUND] Collecting single device: {device_name}")
     else:
         print(f"[BACKGROUND] Collecting devices with filter: {device_filter}")
@@ -47,6 +49,7 @@ async def run_collection_job(job_id: UUID, device_filter: str, device_name: str 
                 db, 
                 device_filter, 
                 device_name,  # Pass device_name
+                device_names,  # Pass device_names
                 progress_callback
             )
             print(f"[BACKGROUND] Collection result: {result}")
@@ -100,7 +103,8 @@ async def trigger_collection(
     asyncio.create_task(run_collection_job(
         job.id, 
         job_create.device_filter,
-        job_create.device_name  # Pass device_name
+        job_create.device_name,  # Pass device_name
+        job_create.device_names  # Pass device_names
     ))
     
     return job

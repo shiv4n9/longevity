@@ -36,9 +36,36 @@ CREATE TABLE IF NOT EXISTS metrics (
     PRIMARY KEY (id, timestamp)
 ) PARTITION BY RANGE (timestamp);
 
--- Create initial partition for current month
+-- Create partitions for 2026
 CREATE TABLE IF NOT EXISTS metrics_2026_03 PARTITION OF metrics
     FOR VALUES FROM ('2026-03-01') TO ('2026-04-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_04 PARTITION OF metrics
+    FOR VALUES FROM ('2026-04-01') TO ('2026-05-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_05 PARTITION OF metrics
+    FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_06 PARTITION OF metrics
+    FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_07 PARTITION OF metrics
+    FOR VALUES FROM ('2026-07-01') TO ('2026-08-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_08 PARTITION OF metrics
+    FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_09 PARTITION OF metrics
+    FOR VALUES FROM ('2026-09-01') TO ('2026-10-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_10 PARTITION OF metrics
+    FOR VALUES FROM ('2026-10-01') TO ('2026-11-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_11 PARTITION OF metrics
+    FOR VALUES FROM ('2026-11-01') TO ('2026-12-01');
+
+CREATE TABLE IF NOT EXISTS metrics_2026_12 PARTITION OF metrics
+    FOR VALUES FROM ('2026-12-01') TO ('2027-01-01');
 
 -- Create index on device_id and timestamp for faster queries
 CREATE INDEX IF NOT EXISTS idx_metrics_device_timestamp ON metrics(device_id, timestamp DESC);

@@ -108,6 +108,7 @@ class CollectionService:
         db: AsyncSession,
         device_filter: Optional[str] = None,
         device_name: Optional[str] = None,
+        device_names: Optional[list[str]] = None,
         progress_callback=None
     ) -> Dict[str, Any]:
         """
@@ -116,6 +117,7 @@ class CollectionService:
         Args:
             device_filter: Filter by device type (highend, vsrx, branch, spc3, all)
             device_name: Filter by specific device name (e.g., snpsrx4100c)
+            device_names: Filter by multiple device names (e.g., ['snpsrx4100c', 'snpsrx380e'])
             progress_callback: Callback for progress updates
         """
         from sqlalchemy import select
@@ -123,8 +125,11 @@ class CollectionService:
         # Get devices to process
         query = select(Device).where(Device.status == 'active')
         
+        # Filter by multiple device names if provided
+        if device_names:
+            query = query.where(Device.name.in_(device_names))
         # Filter by specific device name if provided
-        if device_name:
+        elif device_name:
             query = query.where(Device.name == device_name)
         # Otherwise filter by device type
         elif device_filter and device_filter != 'all':
