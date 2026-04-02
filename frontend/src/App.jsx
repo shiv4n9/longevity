@@ -37,6 +37,7 @@ function Tooltip({ text, children }) {
 
 function App() {
   const [deviceFilter, setDeviceFilter] = useState('ALL')
+  const [platformFilter, setPlatformFilter] = useState('ALL')
   const [metric, setMetric] = useState(null)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(null)
@@ -47,10 +48,14 @@ function App() {
   const [allMetrics, setAllMetrics] = useState([])
   const [historyData, setHistoryData] = useState([])
   const [viewMode, setViewMode] = useState('grid')
+  const [selectedDevices, setSelectedDevices] = useState(new Set())
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [showCoreDumpModal, setShowCoreDumpModal] = useState(false)
+  const [historyTimeRange, setHistoryTimeRange] = useState(1) // days
 
   const filteredAndSortedDevices = useMemo(() => {
     // First filter by device type
-    const filtered = DEVICES.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
+    let filtered = DEVICES.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
     
     // Enrich devices with platform info from metrics
     const enrichedDevices = filtered.map(device => {
@@ -61,13 +66,38 @@ function App() {
       return { ...device, platform, metric, isActive }
     })
     
+    // Filter by platform if selected
+    const platformFiltered = platformFilter === 'ALL' 
+      ? enrichedDevices 
+      : enrichedDevices.filter(d => d.platform === platformFilter)
+    
     // Sort by platform name, then by device name
-    return enrichedDevices.sort((a, b) => {
+    return platformFiltered.sort((a, b) => {
       const platformCompare = a.platform.localeCompare(b.platform, undefined, { numeric: true, sensitivity: 'base' })
       if (platformCompare !== 0) return platformCompare
       return a.name.localeCompare(b.name)
     })
+  }, [deviceFilter, platformFilter, allMetrics])
+
+  // Get unique platforms from filtered devices
+  const availablePlatforms = useMemo(() => {
+    const filtered = DEVICES.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
+    const enriched = filtered.map(device => {
+      const metric = allMetrics.find(m => m.device_name === device.name)
+      return metric?.platform || device.name.toUpperCase()
+    })
+    const unique = ['ALL', ...new Set(enriched)].sort((a, b) => {
+      if (a === 'ALL') return -1
+      if (b === 'ALL') return 1
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    })
+    return unique
   }, [deviceFilter, allMetrics])
+
+  // Reset platform filter when device type changes
+  useEffect(() => {
+    setPlatformFilter('ALL')
+  }, [deviceFilter])
 
   const loadHistoricalMetrics = async (deviceId) => {
     try {
@@ -81,7 +111,16 @@ function App() {
           fullDateTime: dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata', timeZoneName: 'short' })
         };
       })
-      setHistoryData(formatted.slice(0, 20).reverse())
+      
+      // Filter by time range
+      const now = new Date()
+      const cutoffTime = new Date(now.getTime() - (historyTimeRange * 24 * 60 * 60 * 1000))
+      const filtered = formatted.filter(d => {
+        const dt = new Date(d.timestamp + 'Z')
+        return dt >= cutoffTime
+      })
+      
+      setHistoryData(filtered.slice(0, 100).reverse())
     } catch(e) {
       console.error('Failed to load historical metrics:', e)
     }
@@ -96,6 +135,13 @@ function App() {
     }
   }
 
+  // Reload historical data when time range changes
+  useEffect(() => {
+    if (selectedDevice && metric && metric.device_id) {
+      loadHistoricalMetrics(metric.device_id)
+    }
+  }, [historyTimeRange])
+
   useEffect(() => {
     loadAllMetrics()
   }, [])
@@ -109,6 +155,19 @@ function App() {
       setCollectionTime(null)
     }
   }, [selectedDevice])
+
+  // Reload metric when allMetrics updates (after collection) and we're viewing a device
+  useEffect(() => {
+    if (selectedDevice && allMetrics.length > 0) {
+      const updatedMetric = allMetrics.find(d => d.device_name === selectedDevice.name || d.hostname?.includes(selectedDevice.name))
+      if (updatedMetric) {
+        setMetric(updatedMetric)
+        if (updatedMetric.device_id) {
+          loadHistoricalMetrics(updatedMetric.device_id)
+        }
+      }
+    }
+  }, [allMetrics])
 
   useEffect(() => {
     if (autoRefresh && selectedDevice) {
@@ -183,6 +242,87 @@ function App() {
     }
   }
 
+  const toggleDeviceSelection = (deviceName) => {
+    setSelectedDevices(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(deviceName)) {
+        newSet.delete(deviceName)
+      } else {
+        newSet.add(deviceName)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllDevices = () => {
+    const allDeviceNames = filteredAndSortedDevices.map(d => d.name)
+    setSelectedDevices(new Set(allDeviceNames))
+  }
+
+  const clearSelection = () => {
+    setSelectedDevices(new Set())
+  }
+
+  const handleFetchSelected = async () => {
+    if (selectedDevices.size === 0) {
+      alert('Please select at least one device')
+      return
+    }
+
+    setLoading(true)
+    const deviceNames = Array.from(selectedDevices)
+    setProgress(`Collecting metrics from ${deviceNames.length} selected device(s)...`)
+    const startTime = Date.now()
+    
+    try {
+      // Send all selected devices in a single request
+      const response = await axios.post('/api/v1/jobs/collect', {
+        device_names: deviceNames  // Send array of device names
+      })
+      
+      const jobId = response.data.id
+      const wsUrl = API_BASE.replace('http', 'ws')
+      const ws = new WebSocket(`${wsUrl}/ws/${jobId}`)
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        setProgress(data.message)
+        if (data.message.includes('completed') || data.message.includes('failed')) {
+          ws.close()
+        }
+      }
+      
+      ws.onclose = () => {
+        const endTime = Date.now()
+        const duration = ((endTime - startTime) / 1000).toFixed(2)
+        setCollectionTime(duration)
+        setLoading(false)
+        setProgress(`Completed ${deviceNames.length} device(s) in ${duration}s`)
+        
+        // Reload metrics
+        setTimeout(() => {
+          loadAllMetrics()
+          setProgress(null)
+          setSelectionMode(false)
+          clearSelection()
+        }, 2000)
+      }
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error)
+        setLoading(false)
+        setProgress('Connection error')
+        setTimeout(() => setProgress(null), 3000)
+      }
+      
+    } catch (error) {
+      console.error('Collection error:', error)
+      setProgress(`Error: ${error.message}`)
+      setLoading(false)
+      setTimeout(() => setProgress(null), 3000)
+    }
+  }
+
   const handleFetchFiltered = async () => {
     setLoading(true)
     setProgress(`Tracking ${deviceFilter === 'ALL' ? 'All' : deviceFilter} Network Telemetry...`)
@@ -247,6 +387,51 @@ function App() {
   const formatNumber = (num) => {
     if (num === null || num === undefined) return 'N/A'
     return num.toLocaleString()
+  }
+
+  const parseCoreDumps = (output) => {
+    if (!output) return [];
+    
+    const dumps = [];
+    const lines = output.split('\n');
+    
+    for (const line of lines) {
+      // Try to match the line with the file listing pattern
+      // Looking for: -rw-r--r--  1 root  wheel  962077195 Mar 31 04:20 core-srxpfe-snpsrx4300b-node-0-1774955271.tgz
+      const match = line.match(/-[\w-]+\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\S+\s+\d+\s+[\d:]+)\s+(.+\.tgz)/);
+      
+      if (match) {
+        const [, bytes, datetime, filename] = match;
+        
+        // Determine type based on filename
+        let type = 'System Core Dump';
+        let color = 'red';
+        
+        if (filename.includes('srxpfe')) {
+          type = 'Packet Forwarding Engine';
+          color = 'red';
+        } else if (filename.includes('rpd')) {
+          type = 'Routing Protocol Daemon';
+          color = 'orange';
+        } else if (filename.includes('kernel')) {
+          type = 'Kernel Core';
+          color = 'purple';
+        } else if (filename.includes('chassisd')) {
+          type = 'Chassis Daemon';
+          color = 'blue';
+        }
+        
+        // Convert bytes to readable format
+        const bytesNum = parseInt(bytes);
+        const sizeInMB = (bytesNum / (1024 * 1024)).toFixed(2);
+        const sizeInGB = (bytesNum / (1024 * 1024 * 1024)).toFixed(2);
+        const size = sizeInGB >= 1 ? `${sizeInGB} GB` : `${sizeInMB} MB`;
+        
+        dumps.push({ filename, size, datetime, type, color, bytes: bytesNum });
+      }
+    }
+    
+    return dumps;
   }
 
   const formatTime = (date) => {
@@ -314,31 +499,102 @@ function App() {
         {!selectedDevice ? (
           <>
             <div className="filter-container fade-in">
-              <div className="filter-group">
-                <label htmlFor="device-filter">Device Type</label>
-                <select 
-                  id="device-filter" 
-                  value={deviceFilter} 
-                  onChange={(e) => setDeviceFilter(e.target.value)}
-                  className="device-filter-select"
-                >
-                  {DEVICE_TYPES.map(type => (
-                    <option key={type} value={type}>{type === 'ALL' ? 'ALL DEVICES' : type}</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <div className="view-toggle">
-                  <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')}>▦ Cards</button>
-                  <button className={viewMode === 'table' ? 'active' : ''} onClick={() => setViewMode('table')}>☰ List</button>
+              <div className="filter-row">
+                <div className="filter-tabs">
+                  <div className="filter-tab">
+                    <span className="filter-tab-label">Device Type</span>
+                    <select 
+                      id="device-filter" 
+                      value={deviceFilter} 
+                      onChange={(e) => setDeviceFilter(e.target.value)}
+                      className="device-filter-select"
+                    >
+                      {DEVICE_TYPES.map(type => (
+                        <option key={type} value={type}>{type === 'ALL' ? 'ALL DEVICES' : type}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="filter-tab">
+                    <span className="filter-tab-label">Platform</span>
+                    <select 
+                      id="platform-filter" 
+                      value={platformFilter} 
+                      onChange={(e) => setPlatformFilter(e.target.value)}
+                      className="device-filter-select"
+                    >
+                      {availablePlatforms.map(platform => (
+                        <option key={platform} value={platform}>
+                          {platform === 'ALL' ? 'ALL PLATFORMS' : platform}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <button 
-                  className={`refresh-btn ${loading ? 'pulsing' : ''}`} 
-                  onClick={handleFetchFiltered}
-                  disabled={loading}
-                >
-                  {loading ? 'SYNCING...' : `FETCH ${deviceFilter === 'ALL' ? 'ALL' : deviceFilter} METRICS`}
-                </button>
+                <div className="view-toggle">
+                  <span className="view-toggle-label">View</span>
+                  <div className="view-toggle-buttons">
+                    <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')}>▦ Cards</button>
+                    <button className={viewMode === 'table' ? 'active' : ''} onClick={() => setViewMode('table')}>☰ List</button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="filter-row">
+                <div className="action-buttons">
+                  {!selectionMode ? (
+                    <>
+                      <button 
+                        className="selection-mode-btn"
+                        onClick={() => setSelectionMode(true)}
+                      >
+                        ☑ Select Devices
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        className="select-all-btn"
+                        onClick={selectAllDevices}
+                      >
+                        Select All ({filteredAndSortedDevices.length})
+                      </button>
+                      <button 
+                        className="clear-selection-btn"
+                        onClick={clearSelection}
+                      >
+                        Clear
+                      </button>
+                      <button 
+                        className="cancel-selection-btn"
+                        onClick={() => {
+                          setSelectionMode(false)
+                          clearSelection()
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div className="action-buttons">
+                  {!selectionMode ? (
+                    <button 
+                      className={`refresh-btn ${loading ? 'pulsing' : ''}`} 
+                      onClick={handleFetchFiltered}
+                      disabled={loading}
+                    >
+                      {loading ? 'SYNCING...' : `FETCH ${deviceFilter === 'ALL' ? 'ALL' : deviceFilter} METRICS`}
+                    </button>
+                  ) : (
+                    <button 
+                      className={`refresh-btn ${loading ? 'pulsing' : ''}`}
+                      onClick={handleFetchSelected}
+                      disabled={loading || selectedDevices.size === 0}
+                    >
+                      {loading ? 'SYNCING...' : `FETCH SELECTED (${selectedDevices.size})`}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             {viewMode === 'grid' ? (
@@ -346,10 +602,20 @@ function App() {
                 {filteredAndSortedDevices.map((d, index) => (
                   <div 
                   key={d.name} 
-                  className={`device-card glass-card slide-up type-${d.type}`}
+                  className={`device-card glass-card slide-up type-${d.type} ${selectionMode ? 'selection-mode' : ''} ${selectedDevices.has(d.name) ? 'selected' : ''}`}
                   style={{ animationDelay: `${index * 0.05}s` }}
-                  onClick={() => setSelectedDevice(d)}
+                  onClick={() => selectionMode ? toggleDeviceSelection(d.name) : setSelectedDevice(d)}
                 >
+                  {selectionMode && (
+                    <div className="device-checkbox">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedDevices.has(d.name)}
+                        onChange={() => toggleDeviceSelection(d.name)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  )}
                   <div className={`card-top-accent accent-${d.type}`}></div>
                   <div className="device-card-header">
                     <h3>{d.platform}</h3>
@@ -392,6 +658,7 @@ function App() {
                 <table className="device-table">
                   <thead>
                     <tr>
+                      {selectionMode && <th style={{width: '50px'}}>Select</th>}
                       <th>Device Name</th>
                       <th>Type</th>
                       <th>CPU</th>
@@ -405,7 +672,22 @@ function App() {
                     {filteredAndSortedDevices.map((d, index) => {
                         const dMetric = allMetrics.find(m => m.device_name === d.name || m.hostname?.includes(d.name))
                         return (
-                          <tr key={d.name} onClick={() => setSelectedDevice(d)} style={{ animationDelay: `${index * 0.03}s` }} className="slide-up">
+                          <tr 
+                            key={d.name} 
+                            onClick={() => selectionMode ? toggleDeviceSelection(d.name) : setSelectedDevice(d)} 
+                            style={{ animationDelay: `${index * 0.03}s` }} 
+                            className={`slide-up ${selectionMode && selectedDevices.has(d.name) ? 'table-row-selected' : ''}`}
+                          >
+                            {selectionMode && (
+                              <td onClick={(e) => e.stopPropagation()}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={selectedDevices.has(d.name)}
+                                  onChange={() => toggleDeviceSelection(d.name)}
+                                  className="table-checkbox"
+                                />
+                              </td>
+                            )}
                             <td className="font-bold">
                               <div>{d.platform}</div>
                               <div style={{fontSize: '0.75rem', color: '#888', marginTop: '0.25rem'}}>{d.name}</div>
@@ -421,7 +703,7 @@ function App() {
                             ) : (
                               <td colSpan="4" className="text-gray italic text-center">No telemetry loaded</td>
                             )}
-                            <td className="action-cell">View Telemetry →</td>
+                            <td className="action-cell">{selectionMode ? 'Select' : 'View Telemetry →'}</td>
                           </tr>
                         )
                       })}
@@ -435,10 +717,10 @@ function App() {
             <div className="device-hero glass-card slide-up stagger-1">
               <div className="device-identity">
                 <h2>{selectedDevice.platform}</h2>
-                <div style={{fontSize: '0.9rem', color: '#6b7280', marginTop: '0.25rem', fontWeight: 500}}>
-                  Active Device: {selectedDevice.name}
+                <div className="device-subtitle-row">
+                  <span className="active-device-text">Active Device: {selectedDevice.name}</span>
+                  <span className="device-badge">{selectedDevice.type.toUpperCase()} Firewall</span>
                 </div>
-                <span className="device-badge">{selectedDevice.type.toUpperCase()} Firewall</span>
               </div>
               <div className={`status-pill glow-${health.status}`}>
                 <div className="pulse-dot"></div>
@@ -459,7 +741,21 @@ function App() {
               <div className="metric-card glass-card info-card span-2 slide-up stagger-2" style={{ padding: '1.2rem' }}>
                 <div className="card-top" style={{ marginBottom: '0.5rem' }}>
                   <h3>Telemetry History</h3>
-                  <div className="card-icon">📈</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <select 
+                      value={historyTimeRange} 
+                      onChange={(e) => setHistoryTimeRange(Number(e.target.value))}
+                      className="time-range-select"
+                    >
+                      <option value={1}>Past 24 Hours</option>
+                      <option value={2}>Past 2 Days</option>
+                      <option value={3}>Past 3 Days</option>
+                      <option value={7}>Past Week</option>
+                      <option value={14}>Past 2 Weeks</option>
+                      <option value={30}>Past Month</option>
+                    </select>
+                    <div className="card-icon">📈</div>
+                  </div>
                 </div>
                 <div style={{ width: '100%', height: '220px' }}>
                   {historyData.length > 0 ? (
@@ -567,7 +863,19 @@ function App() {
                 </div>
                 <div className={`status-block ${metric.has_core_dumps ? 'danger' : 'safe'}`}>
                   <div className={`status-icon ${metric.has_core_dumps ? 'shake' : ''}`}>{metric.has_core_dumps ? '⚠️' : '🛡️'}</div>
-                  <div className="status-text">{metric.has_core_dumps ? 'CRASH DETECTED' : 'SYSTEM STABLE'}</div>
+                  <div className="status-text">
+                    {metric.has_core_dumps ? (
+                      <span 
+                        onClick={() => setShowCoreDumpModal(true)} 
+                        style={{cursor: 'pointer', textDecoration: 'underline'}}
+                        title="Click to view core dump details"
+                      >
+                        CORE DETECTED
+                      </span>
+                    ) : (
+                      'SYSTEM STABLE'
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -604,6 +912,51 @@ function App() {
           </>
         )}
       </main>
+
+      {/* Core Dump Modal */}
+      {showCoreDumpModal && metric && (
+        <div className="modal-overlay" onClick={() => setShowCoreDumpModal(false)}>
+          <div className="dump-cards-container" onClick={(e) => e.stopPropagation()}>
+            <div className="dump-header">
+              <div className="dump-header-content">
+                <h2>⚠️ Core Dumps Detected</h2>
+                <p>{selectedDevice?.name}</p>
+              </div>
+              <button className="dump-close-btn" onClick={() => setShowCoreDumpModal(false)}>✕</button>
+            </div>
+            
+            <div className="dump-cards-grid">
+              {parseCoreDumps(metric.raw_data?.core_dumps_output).map((dump, index) => (
+                <div key={index} className="dump-card" style={{animationDelay: `${index * 0.1}s`}}>
+                  <div className={`dump-card-header dump-${dump.color}`}>
+                    <span className="dump-type-badge">{dump.type}</span>
+                  </div>
+                  <div className="dump-card-body">
+                    <div className="dump-info-row">
+                      <span className="dump-label">📄 File</span>
+                      <span className="dump-value dump-filename">{dump.filename}</span>
+                    </div>
+                    <div className="dump-info-row">
+                      <span className="dump-label">💾 Size</span>
+                      <span className="dump-value">{dump.size}</span>
+                    </div>
+                    <div className="dump-info-row">
+                      <span className="dump-label">🕐 Date</span>
+                      <span className="dump-value">{dump.datetime}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {parseCoreDumps(metric.raw_data?.core_dumps_output).length === 0 && (
+              <div className="no-dumps">
+                <p>No core dump files found</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
