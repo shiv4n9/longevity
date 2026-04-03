@@ -30,9 +30,18 @@ class SchedulerService:
                 collection_service = CollectionService()
                 
                 # Collect from all devices
-                job = await collection_service.start_collection(db, device_filter="all")
+                async def progress_callback(message: str):
+                    logger.info(f"[Scheduler] {message}")
                 
-                logger.info(f"✓ Scheduled collection completed (Job ID: {job.id})")
+                result = await collection_service.collect_all_metrics(
+                    db, 
+                    device_filter="all",
+                    device_name=None,
+                    device_names=None,
+                    progress_callback=progress_callback
+                )
+                
+                logger.info(f"✓ Scheduled collection completed: {result}")
                 break  # Only need one db session
                 
         except Exception as e:
