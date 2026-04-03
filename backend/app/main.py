@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import devices, metrics, jobs, websocket
+from app.services.scheduler_service import scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,7 +19,15 @@ logger = logging.getLogger("longevity")
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown events."""
     logger.info("🚀 Longevity Dashboard API starting...")
+    
+    # Start the background scheduler
+    scheduler.start()
+    logger.info("✓ Background scheduler started (10-minute interval)")
+    
     yield
+    
+    # Stop the scheduler on shutdown
+    await scheduler.stop()
     logger.info("👋 Longevity Dashboard API shutting down...")
 
 
@@ -33,7 +42,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -49,3 +58,13 @@ app.include_router(websocket.router)
 async def health_check():
     """Liveness probe"""
     return {"status": "healthy", "service": "longevity-dashboard"}
+
+
+@app.get("/api/v1/scheduler/status")
+async def scheduler_status():
+    """Get scheduler status"""
+    return {
+        "running": scheduler.running,
+        "interval_minutes": scheduler.interval_minutes,
+        "task_active": scheduler.task is not None and not scheduler.task.done()
+    }
