@@ -27,10 +27,10 @@ class SchedulerService:
             logger.info(f"🔄 Starting scheduled collection at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
             async for db in get_db():
-                collection_service = CollectionService(db)
+                collection_service = CollectionService()
                 
                 # Collect from all devices
-                job = await collection_service.start_collection(device_filter="all")
+                job = await collection_service.start_collection(db, device_filter="all")
                 
                 logger.info(f"✓ Scheduled collection completed (Job ID: {job.id})")
                 break  # Only need one db session
