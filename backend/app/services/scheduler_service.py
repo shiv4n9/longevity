@@ -42,6 +42,7 @@ class SchedulerService:
         """Run the scheduler loop"""
         self.running = True
         logger.info(f"🚀 Auto-monitoring started - collecting metrics every {self.interval_minutes} minutes")
+        logger.info(f"⏰ Next collection will run in {self.interval_minutes} minutes")
         
         while self.running:
             try:
@@ -50,7 +51,9 @@ class SchedulerService:
                 
                 # Collect metrics
                 if self.running:  # Check again in case we're shutting down
+                    logger.info(f"⏰ {self.interval_minutes} minutes elapsed - triggering scheduled collection")
                     await self.collect_all_metrics()
+                    logger.info(f"⏰ Next collection will run in {self.interval_minutes} minutes")
                     
             except asyncio.CancelledError:
                 logger.info("Scheduler task cancelled")
@@ -62,11 +65,16 @@ class SchedulerService:
     
     def start(self):
         """Start the scheduler in the background"""
+        if self.running:
+            logger.warning("Scheduler is already running")
+            return
+            
         if self.task is None or self.task.done():
+            self.running = False  # Reset before starting
             self.task = asyncio.create_task(self.run())
             logger.info("Scheduler task created")
         else:
-            logger.warning("Scheduler is already running")
+            logger.warning("Scheduler task exists but not running")
     
     async def stop(self):
         """Stop the scheduler"""
