@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS metrics (
     model VARCHAR(255),
     junos_version VARCHAR(100),
     routing_engine VARCHAR(255),
+    platform VARCHAR(255),
     cpu_usage INTEGER,
     memory_usage INTEGER,
     flow_session_current BIGINT,

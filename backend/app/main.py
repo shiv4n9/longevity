@@ -19,15 +19,13 @@ logger = logging.getLogger("longevity")
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown events."""
     logger.info("🚀 Longevity Dashboard API starting...")
-    
-    # Start the background scheduler
-    scheduler.start()
-    logger.info("✓ Background scheduler started (10-minute interval)")
+    logger.info("ℹ️  Auto-monitoring is OFF by default. Enable it from the dashboard.")
     
     yield
     
-    # Stop the scheduler on shutdown
-    await scheduler.stop()
+    # Stop the scheduler on shutdown if running
+    if scheduler.running:
+        await scheduler.stop()
     logger.info("👋 Longevity Dashboard API shutting down...")
 
 
@@ -68,3 +66,25 @@ async def scheduler_status():
         "interval_minutes": scheduler.interval_minutes,
         "task_active": scheduler.task is not None and not scheduler.task.done()
     }
+
+
+@app.post("/api/v1/scheduler/start")
+async def start_scheduler():
+    """Start the automatic metric collection scheduler"""
+    if scheduler.running:
+        return {"message": "Scheduler is already running", "running": True}
+    
+    scheduler.start()
+    logger.info("✓ Auto-monitoring started by user")
+    return {"message": "Auto-monitoring started (10-minute interval)", "running": True}
+
+
+@app.post("/api/v1/scheduler/stop")
+async def stop_scheduler():
+    """Stop the automatic metric collection scheduler"""
+    if not scheduler.running:
+        return {"message": "Scheduler is not running", "running": False}
+    
+    await scheduler.stop()
+    logger.info("✓ Auto-monitoring stopped by user")
+    return {"message": "Auto-monitoring stopped", "running": False}

@@ -41,14 +41,11 @@ class SchedulerService:
     async def run(self):
         """Run the scheduler loop"""
         self.running = True
-        logger.info(f"🚀 Scheduler started - collecting metrics every {self.interval_minutes} minutes")
-        
-        # Run initial collection immediately
-        await self.collect_all_metrics()
+        logger.info(f"🚀 Auto-monitoring started - collecting metrics every {self.interval_minutes} minutes")
         
         while self.running:
             try:
-                # Wait for the interval
+                # Wait for the interval first
                 await asyncio.sleep(self.interval_seconds)
                 
                 # Collect metrics

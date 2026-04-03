@@ -52,6 +52,7 @@ function App() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [showCoreDumpModal, setShowCoreDumpModal] = useState(false)
   const [historyTimeRange, setHistoryTimeRange] = useState(1) // days
+  const [autoMonitoring, setAutoMonitoring] = useState(false)
 
   const filteredAndSortedDevices = useMemo(() => {
     // First filter by device type
@@ -144,7 +145,31 @@ function App() {
 
   useEffect(() => {
     loadAllMetrics()
+    checkSchedulerStatus()
   }, [])
+
+  const checkSchedulerStatus = async () => {
+    try {
+      const response = await axios.get('/api/v1/scheduler/status')
+      setAutoMonitoring(response.data.running)
+    } catch (error) {
+      console.error('Failed to check scheduler status:', error)
+    }
+  }
+
+  const toggleAutoMonitoring = async () => {
+    try {
+      if (autoMonitoring) {
+        await axios.post('/api/v1/scheduler/stop')
+        setAutoMonitoring(false)
+      } else {
+        await axios.post('/api/v1/scheduler/start')
+        setAutoMonitoring(true)
+      }
+    } catch (error) {
+      console.error('Failed to toggle auto-monitoring:', error)
+    }
+  }
 
   useEffect(() => {
     if (selectedDevice) {
@@ -473,22 +498,35 @@ function App() {
               </div>
             </div>
           </div>
-          {selectedDevice && (
-            <div className="header-actions">
+          <div className="header-actions">
+            {!selectedDevice && (
               <label className="toggle-switch">
                 <input 
                   type="checkbox" 
-                  checked={autoRefresh} 
-                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  checked={autoMonitoring} 
+                  onChange={toggleAutoMonitoring}
                 />
                 <span className="slider"></span>
-                <span className="toggle-label">Live Monitor</span>
+                <span className="toggle-label">Auto-Monitor (10min)</span>
               </label>
-              <button onClick={handleRefresh} disabled={loading} className={`refresh-btn ${loading ? 'pulsing' : ''}`}>
-                {loading ? 'SYNCING...' : 'REFRESH NOW'}
-              </button>
-            </div>
-          )}
+            )}
+            {selectedDevice && (
+              <>
+                <label className="toggle-switch">
+                  <input 
+                    type="checkbox" 
+                    checked={autoRefresh} 
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                  />
+                  <span className="slider"></span>
+                  <span className="toggle-label">Live Monitor</span>
+                </label>
+                <button onClick={handleRefresh} disabled={loading} className={`refresh-btn ${loading ? 'pulsing' : ''}`}>
+                  {loading ? 'SYNCING...' : 'REFRESH NOW'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
