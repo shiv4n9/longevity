@@ -6,25 +6,7 @@ import './App.css'
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 axios.defaults.baseURL = API_BASE
 
-const DEVICES = [
-  { name: "snpsrx4300a", vm: "snpsrx4300a.englab.juniper.net", type: "highend" },
-  { name: "snpsrx1600a", vm: "snpsrx1600a.englab.juniper.net", type: "highend" },
-  { name: "snpsrx4300b", vm: "snpsrx4300b.englab.juniper.net", type: "highend" },
-  { name: "snpsrx1600b", vm: "snpsrx1600b.englab.juniper.net", type: "highend" },
-  { name: "esst-srv66-http01", vm: "esst-srv66-http01.englab.juniper.net", type: "vsrx" },
-  { name: "snpsrx4100c", vm: "snpsrx4100c.englab.juniper.net", type: "highend" },
-  { name: "snpsrx380e", vm: "snpsrx380e.englab.juniper.net", type: "branch" },
-  { name: "esst-srv61-http01", vm: "esst-srv61-http01.englab.juniper.net", type: "vsrx" },
-  { name: "snpsrx1500aa", vm: "snpsrx1500aa.englab.juniper.net", type: "highend" },
-  { name: "snpsrx4600j", vm: "snpsrx4600j.englab.juniper.net", type: "highend" },
-  { name: "snpsrx4120c", vm: "snpsrx4120c.englab.juniper.net", type: "highend" },
-  { name: "snpsrx345d", vm: "snpsrx345d.englab.juniper.net", type: "branch" },
-  { name: "snpsrx340k", vm: "snpsrx340k.englab.juniper.net", type: "branch" },
-  { name: "snpsrx300y", vm: "snpsrx300y.englab.juniper.net", type: "branch" },
-  { name: "snpsrx5600q", vm: "snpsrx5600q.englab.juniper.net", type: "spc3" }
-];
-
-const DEVICE_TYPES = ['ALL', ...new Set(DEVICES.map(d => d.type.toUpperCase()))];
+const DEVICE_TYPES = ['ALL', 'HIGHEND', 'BRANCH', 'VSRX', 'SPC3'];
 
 function Tooltip({ text, children }) {
   return (
@@ -60,10 +42,11 @@ function App() {
     device_type: 'highend',
     routing: 'direct'
   })
+  const [devices, setDevices] = useState([])
 
   const filteredAndSortedDevices = useMemo(() => {
     // First filter by device type
-    let filtered = DEVICES.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
+    let filtered = devices.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
     
     // Enrich devices with platform info from metrics
     const enrichedDevices = filtered.map(device => {
@@ -85,11 +68,11 @@ function App() {
       if (platformCompare !== 0) return platformCompare
       return a.name.localeCompare(b.name)
     })
-  }, [deviceFilter, platformFilter, allMetrics])
+  }, [deviceFilter, platformFilter, allMetrics, devices])
 
   // Get unique platforms from filtered devices
   const availablePlatforms = useMemo(() => {
-    const filtered = DEVICES.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
+    const filtered = devices.filter(d => deviceFilter === 'ALL' || d.type.toUpperCase() === deviceFilter)
     const enriched = filtered.map(device => {
       const metric = allMetrics.find(m => m.device_name === device.name)
       return metric?.platform || device.name.toUpperCase()
@@ -100,7 +83,7 @@ function App() {
       return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
     })
     return unique
-  }, [deviceFilter, allMetrics])
+  }, [deviceFilter, allMetrics, devices])
 
   // Reset platform filter when device type changes
   useEffect(() => {
@@ -152,8 +135,22 @@ function App() {
 
   useEffect(() => {
     loadAllMetrics()
+    loadDevices()
     checkSchedulerStatus()
   }, [])
+
+  const loadDevices = async () => {
+    try {
+      const response = await axios.get('/api/v1/devices/')
+      setDevices(response.data.map(d => ({
+        name: d.name,
+        vm: d.hostname,
+        type: d.device_type
+      })))
+    } catch (error) {
+      console.error('Failed to load devices:', error)
+    }
+  }
 
   const checkSchedulerStatus = async () => {
     try {
@@ -183,7 +180,8 @@ function App() {
       await axios.post('/api/v1/devices/', newDevice)
       setShowAddDeviceModal(false)
       setNewDevice({ name: '', hostname: '', device_type: 'highend', routing: 'direct' })
-      // Reload metrics to show the new device
+      // Reload devices and metrics to show the new device
+      await loadDevices()
       loadAllMetrics()
       alert('Device added successfully!')
     } catch (error) {
