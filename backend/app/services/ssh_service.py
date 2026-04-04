@@ -77,8 +77,9 @@ class SSHService:
     and active prompt detection rather than arbitrary sleep delays.
 
     Routing modes:
-      - "double-hop": ttbg jump host → esst-srv2-arm → device
+      - "direct": esst-srv2-arm → device (no jump host, fastest)
       - "single-hop": ttbg jump host → device (direct)
+      - "double-hop": ttbg jump host → esst-srv2-arm → device
     """
 
     def __init__(self):
@@ -172,33 +173,73 @@ class SSHService:
         try:
             if not shell:
                 print(f"[SSH] Establishing NEW pooled connection to {device_name}")
-                jump_ssh = self.pool.get_jump_conn(device_hostname)
-
-                if not jump_ssh:
-                    print(f"[SSH] Connecting to jump host {self.jump_host} for {device_name}...")
-                    jump_ssh = paramiko.SSHClient()
-                    jump_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                    jump_ssh.connect(
-                        self.jump_host,
-                        username=self.jump_username,
-                        password=self.jump_password,
-                        timeout=60,
-                        banner_timeout=60,
-                        auth_timeout=60,
+                
+                # Direct mode: Connect directly from esst-srv2-arm to device (no jump host)
+                if routing == "direct":
+                    print(f"[SSH] Direct connection mode: connecting directly to {device_hostname}...")
+                    direct_ssh = paramiko.SSHClient()
+                    direct_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    direct_ssh.connect(
+                        device_hostname,
+                        username=device_username,
+                        password=device_password,
+                        timeout=30,
+                        banner_timeout=30,
+                        auth_timeout=30,
                         look_for_keys=False,
                         allow_agent=False,
                     )
-                    self.pool.set_jump_conn(device_hostname, jump_ssh)
+                    self.pool.set_jump_conn(device_hostname, direct_ssh)
+                    shell = direct_ssh.invoke_shell()
+                    self._read_until_prompt(shell, timeout=10)
+                    
+                else:
+                    # Jump host modes (single-hop or double-hop)
+                    jump_ssh = self.pool.get_jump_conn(device_hostname)
 
-                shell = jump_ssh.invoke_shell()
-                self._read_until_prompt(shell, timeout=5)
+                    if not jump_ssh:
+                        print(f"[SSH] Connecting to jump host {self.jump_host} for {device_name}...")
+                        jump_ssh = paramiko.SSHClient()
+                        jump_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                        jump_ssh.connect(
+                            self.jump_host,
+                            username=self.jump_username,
+                            password=self.jump_password,
+                            timeout=60,
+                            banner_timeout=60,
+                            auth_timeout=60,
+                            look_for_keys=False,
+                            allow_agent=False,
+                        )
+                        self.pool.set_jump_conn(device_hostname, jump_ssh)
 
-                # Double-hop: ttbg → esst-srv2-arm → device
-                # Single-hop: ttbg → device (direct)
-                if routing == "double-hop":
-                    print(f"[SSH] Double-hop: SSHing to esst-srv2-arm...")
+                    shell = jump_ssh.invoke_shell()
+                    self._read_until_prompt(shell, timeout=5)
+
+                    # Double-hop: ttbg → esst-srv2-arm → device
+                    # Single-hop: ttbg → device (direct)
+                    if routing == "double-hop":
+                        print(f"[SSH] Double-hop: SSHing to esst-srv2-arm...")
+                        self._clear_buffer(shell)
+                        shell.send("ssh root@esst-srv2-arm\n")
+                        output = self._read_until_prompt(shell, timeout=10)
+
+                        if "continue connecting" in output.lower() or "yes/no" in output.lower():
+                            self._clear_buffer(shell)
+                            shell.send("yes\n")
+                            output = self._read_until_prompt(shell, timeout=3)
+
+                        if "password:" in output.lower():
+                            self._clear_buffer(shell)
+                            shell.send("Embe1mpls\n")
+                            # Wait longer for Ubuntu banner and prompt (20s instead of 10s)
+                            output = self._read_until_prompt(shell, timeout=20)
+                            # Additional wait to ensure we're at the prompt
+                            time.sleep(0.5)
+
+                    print(f"[SSH] SSHing to device {device_hostname}...")
                     self._clear_buffer(shell)
-                    shell.send("ssh root@esst-srv2-arm\n")
+                    shell.send(f"ssh {device_username}@{device_hostname}\n")
                     output = self._read_until_prompt(shell, timeout=10)
 
                     if "continue connecting" in output.lower() or "yes/no" in output.lower():
@@ -208,29 +249,11 @@ class SSHService:
 
                     if "password:" in output.lower():
                         self._clear_buffer(shell)
-                        shell.send("Embe1mpls\n")
-                        # Wait longer for Ubuntu banner and prompt (20s instead of 10s)
+                        shell.send(f"{device_password}\n")
+                        # Wait longer for device login and prompt (20s instead of 10s)
                         output = self._read_until_prompt(shell, timeout=20)
-                        # Additional wait to ensure we're at the prompt
+                        # Additional wait to ensure we're at the device prompt
                         time.sleep(0.5)
-
-                print(f"[SSH] SSHing to device {device_hostname}...")
-                self._clear_buffer(shell)
-                shell.send(f"ssh {device_username}@{device_hostname}\n")
-                output = self._read_until_prompt(shell, timeout=10)
-
-                if "continue connecting" in output.lower() or "yes/no" in output.lower():
-                    self._clear_buffer(shell)
-                    shell.send("yes\n")
-                    output = self._read_until_prompt(shell, timeout=3)
-
-                if "password:" in output.lower():
-                    self._clear_buffer(shell)
-                    shell.send(f"{device_password}\n")
-                    # Wait longer for device login and prompt (20s instead of 10s)
-                    output = self._read_until_prompt(shell, timeout=20)
-                    # Additional wait to ensure we're at the device prompt
-                    time.sleep(0.5)
 
                 print(f"[SSH] Entering CLI mode for {device_name}...")
                 self._clear_buffer(shell)

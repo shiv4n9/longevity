@@ -12,91 +12,91 @@
             "name": "snpsrx4300a",
             "vm": "snpsrx4300a.englab.juniper.net",
             "type": "highend",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx1600a",
             "vm": "snpsrx1600a.englab.juniper.net",
             "type": "highend",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx4300b",
             "vm": "snpsrx4300b.englab.juniper.net",
             "type": "highend",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx1600b",
             "vm": "snpsrx1600b.englab.juniper.net",
             "type": "highend",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "esst-srv66-http01",
             "vm": "esst-srv66-http01.englab.juniper.net",
             "type": "vsrx",
-            "routing": "single-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx4100c",
             "vm": "snpsrx4100c.englab.juniper.net",
             "type": "highend",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx380e",
             "vm": "snpsrx380e.englab.juniper.net",
             "type": "branch",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "esst-srv61-http01",
             "vm": "esst-srv61-http01.englab.juniper.net",
             "type": "vsrx",
-            "routing": "single-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx1500aa",
             "vm": "snpsrx1500aa.englab.juniper.net",
             "type": "highend",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx4600j",
             "vm": "snpsrx4600j.englab.juniper.net",
             "type": "highend",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx4120c",
             "vm": "snpsrx4120c.englab.juniper.net",
             "type": "highend",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx345d",
             "vm": "snpsrx345d.englab.juniper.net",
             "type": "branch",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx340k",
             "vm": "snpsrx340k.englab.juniper.net",
             "type": "branch",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx300y",
             "vm": "snpsrx300y.englab.juniper.net",
             "type": "branch",
-            "routing": "double-hop"
+            "routing": "direct"
         },
         {
             "name": "snpsrx5600q",
             "vm": "snpsrx5600q.englab.juniper.net",
             "type": "spc3",
-            "routing": "double-hop"
+            "routing": "direct"
         }
     ]
 }
