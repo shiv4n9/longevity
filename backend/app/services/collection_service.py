@@ -141,8 +141,8 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Limit concurrency to 5 devices at a time to prevent SSH jump-host multiplexing limits (MaxSessions=10)
-        sem = asyncio.Semaphore(5)
+        # Limit concurrency to 3 devices at a time to prevent "too many open files" errors
+        sem = asyncio.Semaphore(3)
         
         async def bounded_collect(dev):
             async with sem:
