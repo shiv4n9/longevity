@@ -53,6 +53,13 @@ function App() {
   const [showCoreDumpModal, setShowCoreDumpModal] = useState(false)
   const [historyTimeRange, setHistoryTimeRange] = useState(1) // days
   const [autoMonitoring, setAutoMonitoring] = useState(false)
+  const [showAddDeviceModal, setShowAddDeviceModal] = useState(false)
+  const [newDevice, setNewDevice] = useState({
+    name: '',
+    hostname: '',
+    device_type: 'highend',
+    routing: 'direct'
+  })
 
   const filteredAndSortedDevices = useMemo(() => {
     // First filter by device type
@@ -168,6 +175,20 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to toggle auto-monitoring:', error)
+    }
+  }
+
+  const handleAddDevice = async () => {
+    try {
+      await axios.post('/api/v1/devices/', newDevice)
+      setShowAddDeviceModal(false)
+      setNewDevice({ name: '', hostname: '', device_type: 'highend', routing: 'direct' })
+      // Reload metrics to show the new device
+      loadAllMetrics()
+      alert('Device added successfully!')
+    } catch (error) {
+      console.error('Failed to add device:', error)
+      alert(error.response?.data?.detail || 'Failed to add device')
     }
   }
 
@@ -591,6 +612,13 @@ function App() {
                       >
                         ☑ Select Devices
                       </button>
+                      <button 
+                        className="selection-mode-btn"
+                        onClick={() => setShowAddDeviceModal(true)}
+                        style={{background: '#00e676'}}
+                      >
+                        ➕ Add Device
+                      </button>
                     </>
                   ) : (
                     <>
@@ -996,6 +1024,64 @@ function App() {
                 <p>No core dump files found</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Device Modal */}
+      {showAddDeviceModal && (
+        <div className="modal-overlay" onClick={() => setShowAddDeviceModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Add New Device</h2>
+            <div className="form-group">
+              <label>Device Name</label>
+              <input
+                type="text"
+                value={newDevice.name}
+                onChange={(e) => setNewDevice({...newDevice, name: e.target.value})}
+                placeholder="e.g., snpsrx4300a"
+              />
+            </div>
+            <div className="form-group">
+              <label>Hostname</label>
+              <input
+                type="text"
+                value={newDevice.hostname}
+                onChange={(e) => setNewDevice({...newDevice, hostname: e.target.value})}
+                placeholder="e.g., snpsrx4300a.englab.juniper.net"
+              />
+            </div>
+            <div className="form-group">
+              <label>Device Type</label>
+              <select
+                value={newDevice.device_type}
+                onChange={(e) => setNewDevice({...newDevice, device_type: e.target.value})}
+              >
+                <option value="highend">Highend</option>
+                <option value="branch">Branch</option>
+                <option value="vsrx">vSRX</option>
+                <option value="spc3">SPC3</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Routing Mode</label>
+              <select
+                value={newDevice.routing}
+                onChange={(e) => setNewDevice({...newDevice, routing: e.target.value})}
+              >
+                <option value="direct">Direct (Fastest - from esst-srv2-arm)</option>
+                <option value="single-hop">Single-hop (via jump host)</option>
+                <option value="double-hop">Double-hop (via jump + esst-srv2-arm)</option>
+              </select>
+            </div>
+            <div className="modal-actions">
+              <button onClick={() => setShowAddDeviceModal(false)} className="cancel-btn">
+                Cancel
+              </button>
+              <button onClick={handleAddDevice} className="add-btn">
+                Add Device
+              </button>
+            </div>
           </div>
         </div>
       )}
