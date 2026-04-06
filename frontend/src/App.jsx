@@ -93,8 +93,18 @@ function App() {
   const loadHistoricalMetrics = async (deviceId) => {
     try {
       const res = await axios.get(`/api/v1/metrics/device/${deviceId}`)
-      const formatted = (res.data || []).map(d => {
-        // Backend returns UTC timestamps without 'Z' suffix, so we need to append it
+      
+      // Filter by time range FIRST
+      const now = new Date()
+      const cutoffTime = new Date(now.getTime() - (historyTimeRange * 24 * 60 * 60 * 1000))
+      
+      const filtered = (res.data || []).filter(d => {
+        const dt = new Date(d.timestamp + 'Z')
+        return dt >= cutoffTime
+      })
+      
+      // Then format the filtered data
+      const formatted = filtered.map(d => {
         const dt = new Date(d.timestamp + 'Z');
         return {
           ...d,
@@ -117,15 +127,10 @@ function App() {
         };
       })
       
-      // Filter by time range
-      const now = new Date()
-      const cutoffTime = new Date(now.getTime() - (historyTimeRange * 24 * 60 * 60 * 1000))
-      const filtered = formatted.filter(d => {
-        const dt = new Date(d.timestamp + 'Z')
-        return dt >= cutoffTime
-      })
+      // Sort by timestamp (oldest first for the graph)
+      const sorted = formatted.sort((a, b) => new Date(a.timestamp + 'Z') - new Date(b.timestamp + 'Z'))
       
-      setHistoryData(filtered.slice(0, 100).reverse())
+      setHistoryData(sorted)
     } catch(e) {
       console.error('Failed to load historical metrics:', e)
     }
