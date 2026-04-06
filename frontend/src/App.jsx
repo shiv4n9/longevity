@@ -98,8 +98,22 @@ function App() {
         const dt = new Date(d.timestamp + 'Z');
         return {
           ...d,
-          time: dt.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata', timeZoneName: 'short'}),
-          fullDateTime: dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata', timeZoneName: 'short' })
+          time: dt.toLocaleString('en-IN', {
+            month: 'short', 
+            day: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit',
+            timeZone: 'Asia/Kolkata'
+          }),
+          fullDateTime: dt.toLocaleString('en-IN', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric',
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit',
+            timeZone: 'Asia/Kolkata'
+          })
         };
       })
       
@@ -131,7 +145,7 @@ function App() {
     if (selectedDevice && metric && metric.device_id) {
       loadHistoricalMetrics(metric.device_id)
     }
-  }, [historyTimeRange])
+  }, [historyTimeRange, selectedDevice, metric])
 
   useEffect(() => {
     loadAllMetrics()
