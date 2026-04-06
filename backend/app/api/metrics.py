@@ -17,9 +17,10 @@ async def get_latest_metrics(db: AsyncSession = Depends(get_db)):
 @router.get("/device/{device_id}", response_model=List[MetricResponse])
 async def get_device_metrics(
     device_id: UUID,
-    limit: int = 100,
+    limit: int = 1000,
+    days: int = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Get historical metrics for a specific device"""
-    metrics = await MetricsService.get_metrics_by_device(db, device_id, limit)
+    metrics = await MetricsService.get_metrics_by_device(db, device_id, limit, days)
     return metrics

@@ -69,14 +69,18 @@ class MetricsService:
     async def get_metrics_by_device(
         db: AsyncSession,
         device_id: UUID,
-        limit: int = 100
+        limit: int = 1000,
+        days: Optional[int] = None
     ) -> List[Metric]:
         """Get metrics for a specific device"""
-        query = (
-            select(Metric)
-            .where(Metric.device_id == device_id)
-            .order_by(desc(Metric.timestamp))
-            .limit(limit)
-        )
+        query = select(Metric).where(Metric.device_id == device_id)
+        
+        # If days filter is provided, filter by timestamp
+        if days:
+            from datetime import timedelta
+            cutoff_time = datetime.utcnow() - timedelta(days=days)
+            query = query.where(Metric.timestamp >= cutoff_time)
+        
+        query = query.order_by(desc(Metric.timestamp)).limit(limit)
         result = await db.execute(query)
         return result.scalars().all()
