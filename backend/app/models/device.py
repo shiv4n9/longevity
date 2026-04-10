@@ -11,6 +11,7 @@ class DeviceType(str, enum.Enum):
     HIGHEND = "highend"
     BRANCH = "branch"
     SPC3 = "spc3"
+    NFX = "nfx"
 
 class DeviceStatus(str, enum.Enum):
     ACTIVE = "active"

@@ -6,7 +6,7 @@ import './App.css'
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 axios.defaults.baseURL = API_BASE
 
-const DEVICE_TYPES = ['ALL', 'HIGHEND', 'BRANCH', 'VSRX', 'SPC3'];
+const DEVICE_TYPES = ['ALL', 'HIGHEND', 'BRANCH', 'VSRX', 'SPC3', 'NFX'];
 
 function Tooltip({ text, children }) {
   return (
@@ -1073,6 +1073,7 @@ function App() {
                 <option value="branch">Branch</option>
                 <option value="vsrx">vSRX</option>
                 <option value="spc3">SPC3</option>
+                <option value="nfx">NFX</option>
               </select>
             </div>
             <div className="form-group">

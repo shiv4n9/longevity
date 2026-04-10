@@ -863,6 +863,7 @@ input:checked + .slider:before {
 .type-vsrx { background: rgba(91, 146, 41, 0.2); color: #5B9229; border: 1px solid rgba(16, 185, 129, 0.4); }
 .type-branch { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); }
 .type-spc3 { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.4); }
+.type-nfx { background: rgba(236, 72, 153, 0.2); color: #ec4899; border: 1px solid rgba(236, 72, 153, 0.4); }
 
 .device-card-body {
   padding: 1rem 1.5rem;
@@ -1100,11 +1101,13 @@ input:checked + .slider:before {
 .device-card.type-vsrx:hover { box-shadow: 0 10px 20px rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); }
 .device-card.type-branch:hover { box-shadow: 0 10px 20px rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.4); }
 .device-card.type-spc3:hover { box-shadow: 0 10px 20px rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.4); }
+.device-card.type-nfx:hover { box-shadow: 0 10px 20px rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4); }
 
 .card-top-accent.accent-highend { background: #38bdf8; }
 .card-top-accent.accent-vsrx { background: #10b981; }
 .card-top-accent.accent-branch { background: #f59e0b; }
 .card-top-accent.accent-spc3 { background: #8b5cf6; }
+.card-top-accent.accent-nfx { background: #ec4899; }
 
 /* Table View Additions */
 .view-toggle {
