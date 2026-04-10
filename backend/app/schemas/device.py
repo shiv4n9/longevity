@@ -16,6 +16,7 @@ class DeviceCreate(DeviceBase):
 class DeviceUpdate(BaseModel):
     hostname: Optional[str] = None
     device_type: Optional[str] = None
+    routing: Optional[str] = Field(None, pattern="^(direct|single-hop|double-hop)$")
     status: Optional[str] = None
 
 class DeviceResponse(DeviceBase):
