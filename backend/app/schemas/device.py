@@ -6,7 +6,7 @@ from typing import Optional
 class DeviceBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     hostname: str = Field(..., min_length=1, max_length=255)
-    device_type: str = Field(..., pattern="^(vsrx|highend|branch|spc3)$")
+    device_type: str = Field(..., pattern="^(vsrx|highend|branch|spc3|nfx)$")
     status: str = Field(default="active", pattern="^(active|inactive|maintenance)$")
 
 class DeviceCreate(DeviceBase):
