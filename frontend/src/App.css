@@ -688,7 +688,7 @@ input:checked + .slider:before {
   right: 20px;
   background: rgba(0, 230, 118, 0.1);
   border: 1px solid rgba(0, 230, 118, 0.3);
-  color: #00e676;
+  color: #1f2937;
   padding: 8px 16px;
   border-radius: 8px;
   font-size: 0.75rem;
