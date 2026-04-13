@@ -151,27 +151,27 @@ function App() {
     loadAllMetrics()
     loadDevices()
     checkSchedulerStatus()
-    
-    // Check for URL parameters to auto-select device
+  }, [])
+
+  // Handle URL parameters after devices are loaded
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const deviceParam = urlParams.get('device')
     const filterParam = urlParams.get('filter')
     
-    if (deviceParam) {
+    if (deviceParam && devices.length > 0) {
       // Auto-select device from URL parameter
-      setTimeout(() => {
-        const device = devices.find(d => d.name === deviceParam)
-        if (device) {
-          setSelectedDevice(device)
-        }
-      }, 1000)
+      const device = devices.find(d => d.name === deviceParam)
+      if (device) {
+        setSelectedDevice(device)
+      }
     }
     
     if (filterParam) {
       // Auto-apply filter from URL parameter
       setDeviceFilter(filterParam.toUpperCase())
     }
-  }, [])
+  }, [devices])
 
   const loadDevices = async () => {
     try {
