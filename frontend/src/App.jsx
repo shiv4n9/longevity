@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts'
 import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -880,6 +880,7 @@ function App() {
                         <XAxis dataKey="time" tick={{fontSize: 10, fill: '#6b7280'}} tickLine={false} axisLine={false} />
                         <YAxis tick={{fontSize: 10, fill: '#6b7280'}} tickLine={false} axisLine={false} domain={[0, 100]} />
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                        <Legend wrapperStyle={{fontSize: '12px'}} />
                         <RechartsTooltip 
                           labelFormatter={(label, payload) => {
                             if (payload && payload.length > 0) {
