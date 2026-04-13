@@ -1007,14 +1007,13 @@ function App() {
                 <span className="footer-label">Last Synchronization</span>
                 <span className="footer-value">SYNC: {lastUpdated ? formatTime(lastUpdated) : 'Never'}</span>
               </div>
-              
-              {collectionTime && (
-                <div className="footer-stat">
-                  <span className="footer-label">Optimization Latency</span>
-                  <span className="footer-value glow-green">{collectionTime}s ⚡</span>
-                </div>
-              )}
             </div>
+            
+            {collectionTime && (
+              <div className="refresh-time-badge">
+                Page Refresh: {collectionTime}s
+              </div>
+            )}
           </>
         )}
           </>
