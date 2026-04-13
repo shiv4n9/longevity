@@ -141,8 +141,8 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Limit concurrency to 3 devices at a time to prevent "too many open files" errors
-        sem = asyncio.Semaphore(3)
+        # Limit concurrency to 7 devices at a time to prevent "too many open files" errors
+        sem = asyncio.Semaphore(7)
         
         async def bounded_collect(dev):
             async with sem:
