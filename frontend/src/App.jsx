@@ -872,6 +872,10 @@ function App() {
                             <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.3}/>
                             <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
                           </linearGradient>
+                          <linearGradient id="colorShm" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                          </linearGradient>
                         </defs>
                         <XAxis dataKey="time" tick={{fontSize: 10, fill: '#6b7280'}} tickLine={false} axisLine={false} />
                         <YAxis tick={{fontSize: 10, fill: '#6b7280'}} tickLine={false} axisLine={false} domain={[0, 100]} />
@@ -888,6 +892,7 @@ function App() {
                         />
                         <Area type="monotone" name="CPU %" dataKey="cpu_usage" stroke="#8DC63F" strokeWidth={2} fillOpacity={1} fill="url(#colorCpu)" />
                         <Area type="monotone" name="Memory %" dataKey="memory_usage" stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#colorMem)" />
+                        <Area type="monotone" name="SHM %" dataKey="global_data_shm_percent" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorShm)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
