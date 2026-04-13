@@ -818,7 +818,7 @@ function App() {
           <>
             <div className="device-hero glass-card slide-up stagger-1">
               <div className="device-identity">
-                <h2>{selectedDevice.platform}</h2>
+                <h2>{selectedDevice.platform || metric?.platform || selectedDevice.name.toUpperCase()}</h2>
                 <div className="device-subtitle-row">
                   <span className="active-device-text">Active Device: {selectedDevice.name}</span>
                   <span className="device-badge">{selectedDevice.type.toUpperCase()} Firewall</span>
@@ -834,7 +834,7 @@ function App() {
               <div className="empty-state glass-card slide-up stagger-2">
                 <div className="empty-icon float-anim">⚡</div>
                 <h3>Waiting for Telemetry</h3>
-                <p>Click "Refresh Now" to instantaneously poll live metrics for {selectedDevice.platform} ({selectedDevice.name}).</p>
+                <p>Click "Refresh Now" to instantaneously poll live metrics for {selectedDevice.platform || metric?.platform || selectedDevice.name} ({selectedDevice.name}).</p>
               </div>
             ) : (
           <>
