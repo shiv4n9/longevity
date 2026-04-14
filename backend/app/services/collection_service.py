@@ -141,15 +141,40 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Limit concurrency to 7 devices at a time to prevent "too many open files" errors
-        sem = asyncio.Semaphore(7)
+        # Limit concurrency to 5 devices at a time to prevent connection resets
+        sem = asyncio.Semaphore(5)
         
         async def bounded_collect(dev):
             async with sem:
                 return await self.collect_device_metrics(dev, db, progress_callback)
+        
+        async def collect_with_retry(dev, max_retries=2):
+            """Collect metrics with retry logic for failed devices"""
+            for attempt in range(max_retries + 1):
+                result = await bounded_collect(dev)
+                
+                # If successful, return immediately
+                if isinstance(result, dict) and result.get("status") == "success":
+                    return result
+                
+                # If failed and not the last attempt, wait before retry
+                if attempt < max_retries:
+                    # Extract error message for logging
+                    error_msg = result.get("error", "Unknown error") if isinstance(result, dict) else str(result)
+                    
+                    # Only retry on connection reset errors
+                    if "Connection reset by peer" in error_msg or "EOF" in error_msg:
+                        wait_time = (attempt + 1) * 2  # 2s, 4s backoff
+                        logger.info(f"Retrying {dev.name} after {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        # Don't retry on other errors (auth failures, etc.)
+                        return result
+            
+            return result
                 
         tasks = [
-            bounded_collect(device)
+            collect_with_retry(device)
             for device in devices
         ]
         
