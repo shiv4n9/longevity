@@ -141,15 +141,15 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Limit concurrency to 5 devices at a time to prevent connection resets
-        sem = asyncio.Semaphore(5)
+        # Limit concurrency to 3 devices at a time for better stability
+        sem = asyncio.Semaphore(3)
         
         async def bounded_collect(dev):
             async with sem:
                 return await self.collect_device_metrics(dev, db, progress_callback)
         
-        async def collect_with_retry(dev, max_retries=2):
-            """Collect metrics with retry logic for failed devices"""
+        async def collect_with_retry(dev, max_retries=1):
+            """Collect metrics with retry logic for failed devices (reduced to 1 retry for efficiency)"""
             for attempt in range(max_retries + 1):
                 result = await bounded_collect(dev)
                 
@@ -162,13 +162,14 @@ class CollectionService:
                     # Extract error message for logging
                     error_msg = result.get("error", "Unknown error") if isinstance(result, dict) else str(result)
                     
-                    # Only retry on connection reset errors
-                    if "Connection reset by peer" in error_msg or "EOF" in error_msg:
-                        wait_time = (attempt + 1) * 2  # 2s, 4s backoff
+                    # Only retry on connection reset errors, not auth or timeout errors
+                    if "Connection reset by peer" in error_msg:
+                        wait_time = 3  # Fixed 3s wait between retries
                         logger.info(f"Retrying {dev.name} after {wait_time}s (attempt {attempt + 1}/{max_retries})")
                         await asyncio.sleep(wait_time)
                     else:
-                        # Don't retry on other errors (auth failures, etc.)
+                        # Don't retry on auth failures, timeouts, or other errors
+                        logger.debug(f"Not retrying {dev.name}: {error_msg}")
                         return result
             
             return result
