@@ -141,15 +141,16 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Limit concurrency to 3 devices at a time for better stability
-        sem = asyncio.Semaphore(3)
+        # Limit concurrency to 8 devices at a time for faster collection
+        # With 49 devices, this gives us ~6 batches at ~10s each = ~60s total
+        sem = asyncio.Semaphore(8)
         
         async def bounded_collect(dev):
             async with sem:
                 return await self.collect_device_metrics(dev, db, progress_callback)
         
         async def collect_with_retry(dev, max_retries=1):
-            """Collect metrics with retry logic for failed devices (reduced to 1 retry for efficiency)"""
+            """Collect metrics with retry logic for failed devices (1 retry max for speed)"""
             for attempt in range(max_retries + 1):
                 result = await bounded_collect(dev)
                 
@@ -164,12 +165,11 @@ class CollectionService:
                     
                     # Only retry on connection reset errors, not auth or timeout errors
                     if "Connection reset by peer" in error_msg:
-                        wait_time = 3  # Fixed 3s wait between retries
-                        logger.info(f"Retrying {dev.name} after {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                        wait_time = 2  # Quick 2s retry for speed
+                        logger.info(f"Quick retry {dev.name} after {wait_time}s")
                         await asyncio.sleep(wait_time)
                     else:
                         # Don't retry on auth failures, timeouts, or other errors
-                        logger.debug(f"Not retrying {dev.name}: {error_msg}")
                         return result
             
             return result

@@ -111,7 +111,7 @@ class SSHService:
                 routing,
             )
 
-    def _read_until_prompt(self, shell: paramiko.Channel, timeout: int = 15) -> str:
+    def _read_until_prompt(self, shell: paramiko.Channel, timeout: int = 10) -> str:
         """Reads from stdout until common CLI prompts or timeout."""
         output = ""
         start_time = time.time()
@@ -183,9 +183,9 @@ class SSHService:
                         device_hostname,
                         username=device_username,
                         password=device_password,
-                        timeout=20,
-                        banner_timeout=20,
-                        auth_timeout=20,
+                        timeout=15,
+                        banner_timeout=15,
+                        auth_timeout=15,
                         look_for_keys=False,
                         allow_agent=False,
                     )
