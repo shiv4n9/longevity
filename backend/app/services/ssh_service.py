@@ -20,6 +20,8 @@ class SSHConnectionPool:
         self._locks: Dict[str, asyncio.Lock] = {}
         self._jump_locks: Dict[str, threading.Lock] = {}
         self._meta_lock = threading.Lock()  # Protects lock dict creation
+        self._last_used: Dict[str, float] = {}  # Track last usage time for cleanup
+        self._connection_timeout = 600  # 10 minutes - close idle connections
 
     def get_lock(self, device_hostname: str) -> asyncio.Lock:
         """Get or create an asyncio lock for a device (thread-safe creation)."""
@@ -48,12 +50,34 @@ class SSHConnectionPool:
 
     def get_device_shell(self, device_hostname: str) -> Optional[paramiko.Channel]:
         shell = self._shells.get(device_hostname)
+        
+        # Check if connection exists and is still valid
         if shell and not shell.closed:
-            return shell
+            # Check if connection has been idle too long
+            last_used = self._last_used.get(device_hostname, 0)
+            if time.time() - last_used > self._connection_timeout:
+                logger.info(f"[Pool] Connection to {device_hostname} idle for {self._connection_timeout}s, closing...")
+                self.remove_device_shell(device_hostname)
+                return None
+            
+            # Verify transport is still active
+            conn = self._jump_conns.get(device_hostname)
+            if conn and conn.get_transport() and conn.get_transport().is_active():
+                return shell
+            else:
+                logger.info(f"[Pool] Connection to {device_hostname} transport inactive, closing...")
+                self.remove_device_shell(device_hostname)
+                return None
+        
         return None
 
     def set_device_shell(self, device_hostname: str, shell: paramiko.Channel):
         self._shells[device_hostname] = shell
+        self._last_used[device_hostname] = time.time()
+    
+    def update_last_used(self, device_hostname: str):
+        """Update the last used timestamp for a connection"""
+        self._last_used[device_hostname] = time.time()
 
     def remove_device_shell(self, device_hostname: str):
         if device_hostname in self._shells:
@@ -69,6 +93,29 @@ class SSHConnectionPool:
             except Exception:
                 pass
             del self._jump_conns[device_hostname]
+        if device_hostname in self._last_used:
+            del self._last_used[device_hostname]
+    
+    def cleanup_stale_connections(self):
+        """Clean up connections that have been idle too long"""
+        current_time = time.time()
+        stale_devices = []
+        
+        for device_hostname, last_used in self._last_used.items():
+            if current_time - last_used > self._connection_timeout:
+                stale_devices.append(device_hostname)
+        
+        for device_hostname in stale_devices:
+            logger.info(f"[Pool] Cleaning up stale connection to {device_hostname}")
+            self.remove_device_shell(device_hostname)
+    
+    def get_pool_stats(self) -> Dict[str, int]:
+        """Get statistics about the connection pool"""
+        return {
+            "total_connections": len(self._shells),
+            "active_connections": sum(1 for shell in self._shells.values() if not shell.closed),
+            "jump_connections": len(self._jump_conns)
+        }
 
 
 class SSHService:
@@ -275,6 +322,30 @@ class SSHService:
                 print(f"[SSH] Successfully pooled connection to {device_name}")
             else:
                 print(f"[SSH] REUSING pooled connection to {device_name}")
+                # Update last used timestamp
+                self.pool.update_last_used(device_hostname)
+                
+                # Verify connection is still responsive with a quick test
+                try:
+                    self._clear_buffer(shell)
+                    shell.send("\n")  # Send newline to test responsiveness
+                    test_output = self._read_until_prompt(shell, timeout=3)
+                    if not test_output or len(test_output) < 2:
+                        # Connection seems dead, remove and reconnect
+                        print(f"[SSH] Pooled connection to {device_name} unresponsive, reconnecting...")
+                        self.pool.remove_device_shell(device_hostname)
+                        # Recursively call to establish new connection
+                        return self._execute_commands_sync(
+                            device_hostname, device_username, device_password,
+                            commands, device_name, routing
+                        )
+                except Exception as e:
+                    print(f"[SSH] Pooled connection test failed for {device_name}: {e}, reconnecting...")
+                    self.pool.remove_device_shell(device_hostname)
+                    return self._execute_commands_sync(
+                        device_hostname, device_username, device_password,
+                        commands, device_name, routing
+                    )
 
             for cmd_name, cmd in commands:
                 print(f"[SSH] Executing {cmd_name}: {cmd}")

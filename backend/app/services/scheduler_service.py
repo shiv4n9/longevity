@@ -26,6 +26,12 @@ class SchedulerService:
         try:
             logger.info(f"🔄 Starting scheduled collection at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
+            # Clean up stale connections before collection
+            from app.services.ssh_service import ssh_service
+            ssh_service.pool.cleanup_stale_connections()
+            pool_stats = ssh_service.pool.get_pool_stats()
+            logger.info(f"📊 Connection pool stats: {pool_stats}")
+            
             async for db in get_db():
                 collection_service = CollectionService()
                 
