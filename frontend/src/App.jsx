@@ -555,7 +555,7 @@ function App() {
       // Format 2: Just the filepath (no permissions/size/date)
       // /var/crash/vmcore.0
       // /var/core/re0/named.re.re0.7982.2026_04_16.19_45_38_UTC.tar.gz
-      const pathMatch = line.match(/^(\/[\w\/.-]+)$/);
+      const pathMatch = line.match(/^(\/[^\s]+)$/);
       
       if (pathMatch) {
         const filepath = pathMatch[1];
