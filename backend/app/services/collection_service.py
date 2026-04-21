@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from uuid import UUID
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -13,6 +14,7 @@ from app.services.command_service import CommandService
 from app.core.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger("longevity.collection")
 
 class CollectionService:
     """Service for collecting metrics from devices with true concurrency"""
@@ -141,16 +143,16 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Limit concurrency to 20 devices at a time for ~1min collection
-        # With 48 devices, this gives us ~2.4 batches at ~25s each = ~60s total
-        sem = asyncio.Semaphore(20)
+        # Limit concurrency to 10 devices at a time to avoid overwhelming the jump host
+        # Too many concurrent SSH connections cause auth timeouts
+        sem = asyncio.Semaphore(10)
         
         async def bounded_collect(dev):
             async with sem:
                 return await self.collect_device_metrics(dev, db, progress_callback)
         
-        async def collect_with_retry(dev, max_retries=1):
-            """Collect metrics with retry logic for failed devices (1 retry max for speed)"""
+        async def collect_with_retry(dev, max_retries=2):
+            """Collect metrics with retry logic for failed devices"""
             for attempt in range(max_retries + 1):
                 result = await bounded_collect(dev)
                 
@@ -158,18 +160,26 @@ class CollectionService:
                 if isinstance(result, dict) and result.get("status") == "success":
                     return result
                 
-                # If failed and not the last attempt, wait before retry
+                # If failed and not the last attempt, check if retryable
                 if attempt < max_retries:
-                    # Extract error message for logging
                     error_msg = result.get("error", "Unknown error") if isinstance(result, dict) else str(result)
                     
-                    # Only retry on connection reset errors, not auth or timeout errors
-                    if "Connection reset by peer" in error_msg:
-                        wait_time = 2  # Quick 2s retry for speed
-                        logger.info(f"Quick retry {dev.name} after {wait_time}s")
+                    # Retry on transient connection errors
+                    retryable = any(err in error_msg for err in [
+                        "Connection reset by peer",
+                        "Authentication timeout",
+                        "Unable to connect",
+                        "timed out",
+                        "Connection refused",
+                        "EOF during negotiation"
+                    ])
+                    
+                    if retryable:
+                        wait_time = 3 * (attempt + 1)  # 3s, 6s backoff
+                        logger.info(f"Retry {attempt + 1}/{max_retries} for {dev.name} after {wait_time}s: {error_msg[:80]}")
                         await asyncio.sleep(wait_time)
                     else:
-                        # Don't retry on auth failures, timeouts, or other errors
+                        # Don't retry on permanent errors (bad credentials, etc.)
                         return result
             
             return result
