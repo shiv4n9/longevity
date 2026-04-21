@@ -111,7 +111,7 @@ class SSHService:
                 routing,
             )
 
-    def _read_until_prompt(self, shell: paramiko.Channel, timeout: int = 8) -> str:
+    def _read_until_prompt(self, shell: paramiko.Channel, timeout: int = 6) -> str:
         """Reads from stdout until common CLI prompts or timeout."""
         output = ""
         start_time = time.time()
@@ -183,9 +183,9 @@ class SSHService:
                         device_hostname,
                         username=device_username,
                         password=device_password,
-                        timeout=12,
-                        banner_timeout=12,
-                        auth_timeout=12,
+                        timeout=10,
+                        banner_timeout=10,
+                        auth_timeout=10,
                         look_for_keys=False,
                         allow_agent=False,
                     )
@@ -232,10 +232,10 @@ class SSHService:
                         if "password:" in output.lower():
                             self._clear_buffer(shell)
                             shell.send("Embe1mpls\n")
-                            # Wait longer for Ubuntu banner and prompt (20s instead of 10s)
-                            output = self._read_until_prompt(shell, timeout=20)
+                            # Wait for Ubuntu banner and prompt
+                            output = self._read_until_prompt(shell, timeout=15)
                             # Additional wait to ensure we're at the prompt
-                            time.sleep(0.5)
+                            time.sleep(0.3)
 
                     print(f"[SSH] SSHing to device {device_hostname}...")
                     self._clear_buffer(shell)
@@ -250,10 +250,10 @@ class SSHService:
                     if "password:" in output.lower():
                         self._clear_buffer(shell)
                         shell.send(f"{device_password}\n")
-                        # Wait longer for device login and prompt (20s instead of 10s)
-                        output = self._read_until_prompt(shell, timeout=20)
+                        # Wait for device login and prompt
+                        output = self._read_until_prompt(shell, timeout=15)
                         # Additional wait to ensure we're at the device prompt
-                        time.sleep(0.5)
+                        time.sleep(0.3)
 
                 print(f"[SSH] Entering CLI mode for {device_name}...")
                 self._clear_buffer(shell)
@@ -284,12 +284,12 @@ class SSHService:
                     shell.recv(8192)
 
                 shell.send(f"{cmd}\n")
-                wait_timeout = 25 if "arena" in cmd else 15
+                wait_timeout = 12 if "arena" in cmd else 10
 
                 out_buffer = ""
                 start = time.time()
                 last_recv_time = start
-                idle_threshold = 0.2  # Wait 200ms of no data before checking prompt
+                idle_threshold = 0.15  # Wait 150ms of no data before checking prompt
 
                 while time.time() - start < wait_timeout:
                     if shell.recv_ready():

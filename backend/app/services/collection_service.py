@@ -141,9 +141,9 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Limit concurrency to 12 devices at a time for ~1min collection
-        # With 48 devices, this gives us 4 batches at ~15s each = ~60s total
-        sem = asyncio.Semaphore(12)
+        # Limit concurrency to 20 devices at a time for ~1min collection
+        # With 48 devices, this gives us ~2.4 batches at ~25s each = ~60s total
+        sem = asyncio.Semaphore(20)
         
         async def bounded_collect(dev):
             async with sem:
