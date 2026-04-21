@@ -468,11 +468,18 @@ function App() {
   }
 
   const parseCoreDumps = (output) => {
-    if (!output) return [];
+    console.log('[Core Dumps] Raw output:', output);
+    
+    if (!output) {
+      console.log('[Core Dumps] No output provided');
+      return [];
+    }
     
     const dumps = [];
     const lines = output.split('\n');
     let currentPath = '/var/crash'; // default path
+    
+    console.log('[Core Dumps] Processing', lines.length, 'lines');
     
     for (const line of lines) {
       // Skip empty lines and non-file lines
@@ -485,6 +492,7 @@ function App() {
       // Check if line is a directory path
       if (line.trim().endsWith(':')) {
         currentPath = line.trim().replace(':', '');
+        console.log('[Core Dumps] Found path:', currentPath);
         continue;
       }
       
@@ -501,11 +509,14 @@ function App() {
       if (match) {
         const [, permissions, bytes, datetime, filepath, symlink] = match;
         
+        console.log('[Core Dumps] Matched line:', { permissions, bytes, datetime, filepath });
+        
         // Extract just the filename from the full path
         const filename = filepath.split('/').pop();
         
         // Skip if it's a symlink (starts with 'l')
         if (permissions.startsWith('l')) {
+          console.log('[Core Dumps] Skipping symlink:', filename);
           continue;
         }
         
@@ -515,6 +526,7 @@ function App() {
             !lowerFilename.includes('named') && !lowerFilename.includes('srxpfe') &&
             !lowerFilename.includes('rpd') && !lowerFilename.includes('kernel') &&
             !lowerFilename.includes('chassisd')) {
+          console.log('[Core Dumps] Skipping non-core file:', filename);
           continue;
         }
         
@@ -542,10 +554,13 @@ function App() {
         // Use the full path if it starts with /, otherwise construct it
         const fullPath = filepath.startsWith('/') ? filepath : `${currentPath}/${filename}`;
         
-        dumps.push({ filename, path: fullPath, datetime, type, color, bytes: parseInt(bytes) });
+        const dump = { filename, path: fullPath, datetime, type, color, bytes: parseInt(bytes) };
+        console.log('[Core Dumps] Adding dump:', dump);
+        dumps.push(dump);
       }
     }
     
+    console.log('[Core Dumps] Total dumps found:', dumps.length);
     return dumps;
   }
 

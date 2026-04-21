@@ -175,8 +175,12 @@ class ParserService:
             if line.strip().endswith(':'):
                 continue
             
-            if "core" in line.lower():
-                cores_found = True
-                break
+            # Check for core dump files - look for common patterns
+            line_lower = line.lower()
+            if any(keyword in line_lower for keyword in ["core", "vmcore", "named.re", "srxpfe", "rpd.", "kernel.", "chassisd"]):
+                # Make sure it's a file line (has permissions at start)
+                if line.strip() and (line.strip()[0] == '-' or line.strip()[0] == 'l'):
+                    cores_found = True
+                    break
         
         return cores_found, output

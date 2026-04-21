@@ -89,7 +89,7 @@ class CollectionService:
                 cp_session_current=sec_data.get('cp_session_current'),
                 has_core_dumps=has_cores,
                 global_data_shm_percent=global_shm,
-                raw_data={"core_dumps_output": core_output if has_cores else None}
+                raw_data={"core_dumps_output": core_output} if has_cores else None
             )
             
             if progress_callback:
