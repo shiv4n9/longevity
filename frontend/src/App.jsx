@@ -528,18 +528,14 @@ function App() {
         
         console.log('[Core Dumps] Matched full format:', { permissions, bytes, datetime, filepath: cleanFilepath });
         
-        // Skip symlinks
-        if (permissions.startsWith('l')) {
-          console.log('[Core Dumps] Skipping symlink:', cleanFilepath);
-          continue;
-        }
-        
         // Skip directories
         if (permissions.startsWith('d')) {
           continue;
         }
         
-        const filename = cleanFilepath.split('/').pop();
+        // Clean symlink @ suffix from filepath (e.g. "file.tgz@" -> "file.tgz")
+        const finalFilepath = cleanFilepath.replace(/@$/, '');
+        const filename = finalFilepath.split('/').pop();
         const lowerFilename = filename.toLowerCase();
         
         if (!isCoreDumpFile(lowerFilename)) {
@@ -548,7 +544,7 @@ function App() {
         }
         
         const { type, color } = classifyDump(lowerFilename);
-        const fullPath = cleanFilepath.startsWith('/') ? cleanFilepath : `${currentPath}/${filename}`;
+        const fullPath = finalFilepath.startsWith('/') ? finalFilepath : `${currentPath}/${filename}`;
         const dump = { filename, path: fullPath, datetime, type, color, bytes: parseInt(bytes) };
         console.log('[Core Dumps] Adding dump:', dump);
         dumps.push(dump);
