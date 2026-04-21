@@ -164,23 +164,35 @@ class ParserService:
         """Check if core dumps exist and return full output"""
         cores_found = False
         
+        core_keywords = ["core", "vmcore", "named.re", "srxpfe", "rpd.", "kernel.", "chassisd"]
+        
         for line in output.strip().split('\n'):
-            if not line.strip():
+            cleaned = line.strip().replace('\r', '')
+            if not cleaned:
                 continue
             
             # Skip non-core lines
-            if any(x in line for x in ["No such file", "total blocks:", "total files:", "show system", ">", "#"]):
+            if any(x in cleaned for x in ["No such file", "total blocks:", "total files:", "show system", "lost+found"]):
                 continue
             
-            if line.strip().endswith(':'):
+            if cleaned.endswith(':'):
                 continue
             
-            # Check for core dump files - look for common patterns
-            line_lower = line.lower()
-            if any(keyword in line_lower for keyword in ["core", "vmcore", "named.re", "srxpfe", "rpd.", "kernel.", "chassisd"]):
-                # Make sure it's a file line (has permissions at start)
-                if line.strip() and (line.strip()[0] == '-' or line.strip()[0] == 'l'):
+            # Skip prompts
+            if cleaned.startswith('>') or cleaned.startswith('#') or cleaned.startswith('root@') or cleaned.startswith('drwx'):
+                continue
+            
+            # Check for core dump keywords in the line
+            line_lower = cleaned.lower()
+            if any(keyword in line_lower for keyword in core_keywords):
+                # Format 1: Full ls -la format (starts with - or l for file/symlink)
+                if cleaned[0] in ('-', 'l'):
+                    cores_found = True
+                    break
+                # Format 2: Path-only format (starts with /)
+                if cleaned.startswith('/'):
                     cores_found = True
                     break
         
         return cores_found, output
+
