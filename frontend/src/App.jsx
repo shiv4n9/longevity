@@ -481,7 +481,9 @@ function App() {
     
     console.log('[Core Dumps] Processing', lines.length, 'lines');
     
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
       // Skip empty lines and non-file lines
       if (!line.trim() || line.includes('No such file') || line.includes('total blocks:') || 
           line.includes('total files:') || line.includes('show system') || 
@@ -496,32 +498,25 @@ function App() {
         continue;
       }
       
-      // Try to match the line with the file listing pattern
-      // Match various formats:
-      // -rw-r--r--  1 root  wheel  962077195 Mar 31 04:20 core-srxpfe.tgz
+      // Format 1: Full ls -la format with permissions, size, date
       // -rw-------  1 root  root   4261684 Apr 16 19:49 /var/core/re0/named.re.re0.7982.tar.gz
-      // -rw-xr-xr-x  1 root  wheel  394231808 Apr 15 00:29 /var/crash/vmcore.0
-      // lrwxr-xr-x  1 root  wheel  8 Apr 18 00:29 /var/crash/vmcore.last0 -> vmcore.0
+      const fullMatch = line.match(/^([l-][\w-]+)\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\S+\s+\d+\s+[\d:]+)\s+(.+?)(\s*->\s*.+)?$/);
       
-      // Pattern: permissions user group size date time filename
-      const match = line.match(/^([l-][\w-]+)\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\S+\s+\d+\s+[\d:]+)\s+(.+?)(\s*->\s*.+)?$/);
-      
-      if (match) {
-        const [, permissions, bytes, datetime, filepath, symlink] = match;
+      if (fullMatch) {
+        const [, permissions, bytes, datetime, filepath, symlink] = fullMatch;
         
-        console.log('[Core Dumps] Matched line:', { permissions, bytes, datetime, filepath });
+        console.log('[Core Dumps] Matched full format:', { permissions, bytes, datetime, filepath });
         
-        // Extract just the filename from the full path
-        const filename = filepath.split('/').pop();
-        
-        // Skip if it's a symlink (starts with 'l')
+        // Skip symlinks
         if (permissions.startsWith('l')) {
-          console.log('[Core Dumps] Skipping symlink:', filename);
+          console.log('[Core Dumps] Skipping symlink:', filepath);
           continue;
         }
         
-        // Only include files that look like core dumps
+        const filename = filepath.split('/').pop();
         const lowerFilename = filename.toLowerCase();
+        
+        // Check if it's a core dump file
         if (!lowerFilename.includes('core') && !lowerFilename.includes('vmcore') && 
             !lowerFilename.includes('named') && !lowerFilename.includes('srxpfe') &&
             !lowerFilename.includes('rpd') && !lowerFilename.includes('kernel') &&
@@ -530,7 +525,6 @@ function App() {
           continue;
         }
         
-        // Determine type based on filename
         let type = 'System Core Dump';
         let color = 'red';
         
@@ -551,11 +545,63 @@ function App() {
           color = 'orange';
         }
         
-        // Use the full path if it starts with /, otherwise construct it
         const fullPath = filepath.startsWith('/') ? filepath : `${currentPath}/${filename}`;
-        
         const dump = { filename, path: fullPath, datetime, type, color, bytes: parseInt(bytes) };
         console.log('[Core Dumps] Adding dump:', dump);
+        dumps.push(dump);
+        continue;
+      }
+      
+      // Format 2: Just the filepath (no permissions/size/date)
+      // /var/crash/vmcore.0
+      // /var/core/re0/named.re.re0.7982.2026_04_16.19_45_38_UTC.tar.gz
+      const pathMatch = line.match(/^(\/[\w\/.-]+)$/);
+      
+      if (pathMatch) {
+        const filepath = pathMatch[1];
+        const filename = filepath.split('/').pop();
+        const lowerFilename = filename.toLowerCase();
+        
+        console.log('[Core Dumps] Matched path-only format:', filepath);
+        
+        // Check if it's a core dump file
+        if (!lowerFilename.includes('core') && !lowerFilename.includes('vmcore') && 
+            !lowerFilename.includes('named') && !lowerFilename.includes('srxpfe') &&
+            !lowerFilename.includes('rpd') && !lowerFilename.includes('kernel') &&
+            !lowerFilename.includes('chassisd')) {
+          console.log('[Core Dumps] Skipping non-core file:', filename);
+          continue;
+        }
+        
+        let type = 'System Core Dump';
+        let color = 'red';
+        
+        if (lowerFilename.includes('srxpfe')) {
+          type = 'Packet Forwarding Engine';
+          color = 'red';
+        } else if (lowerFilename.includes('rpd')) {
+          type = 'Routing Protocol Daemon';
+          color = 'orange';
+        } else if (lowerFilename.includes('kernel') || lowerFilename.includes('vmcore')) {
+          type = 'Kernel Core';
+          color = 'purple';
+        } else if (lowerFilename.includes('chassisd')) {
+          type = 'Chassis Daemon';
+          color = 'blue';
+        } else if (lowerFilename.includes('named')) {
+          type = 'Named Daemon';
+          color = 'orange';
+        }
+        
+        const dump = { 
+          filename, 
+          path: filepath, 
+          datetime: 'Unknown', 
+          type, 
+          color, 
+          bytes: 0 
+        };
+        console.log('[Core Dumps] Adding dump (no metadata):', dump);
         dumps.push(dump);
       }
     }
