@@ -20,9 +20,15 @@ class SchedulerService:
         self.interval_seconds = interval_minutes * 60
         self.task: Optional[asyncio.Task] = None
         self.running = False
+        self._collecting = False  # Guard against overlapping collection runs
         
     async def collect_all_metrics(self):
         """Collect metrics from all active devices"""
+        if self._collecting:
+            logger.warning("⚠️ Previous collection still running, skipping this cycle")
+            return
+        
+        self._collecting = True
         try:
             logger.info(f"🔄 Starting scheduled collection at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
@@ -52,6 +58,8 @@ class SchedulerService:
                 
         except Exception as e:
             logger.error(f"❌ Scheduled collection failed: {e}", exc_info=True)
+        finally:
+            self._collecting = False
     
     async def run(self):
         """Run the scheduler loop"""

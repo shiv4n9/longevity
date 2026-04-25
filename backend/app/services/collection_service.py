@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.device import Device
 from app.models.job import CollectionJob
 from app.models.metric import Metric
-from app.services.ssh_service import SSHService
+from app.services.ssh_service import ssh_service  # Use the global singleton
 from app.services.parser_service import ParserService
 from app.services.command_service import CommandService
 from app.core.config import get_settings
@@ -20,7 +20,7 @@ class CollectionService:
     """Service for collecting metrics from devices with true concurrency"""
     
     def __init__(self):
-        self.ssh_service = SSHService()
+        self.ssh_service = ssh_service  # Reuse global singleton with persistent pool
         self.parser = ParserService()
         self.command_service = CommandService()
     
@@ -143,18 +143,27 @@ class CollectionService:
         if not devices:
             return {"status": "no_devices", "results": []}
         
-        # Limit concurrency to 10 devices at a time to avoid overwhelming the jump host
-        # Too many concurrent SSH connections cause auth timeouts
-        sem = asyncio.Semaphore(10)
+        # Limit concurrency to 3 devices at a time to avoid flooding the network
+        # 10 was too aggressive and caused mass "Connection reset by peer" errors
+        sem = asyncio.Semaphore(3)
         
-        async def bounded_collect(dev):
+        async def bounded_collect(dev, index):
+            # Stagger device starts to avoid connection thundering herd
+            await asyncio.sleep(index * 1.5)
             async with sem:
                 return await self.collect_device_metrics(dev, db, progress_callback)
         
-        async def collect_with_retry(dev, max_retries=2):
+        async def collect_with_retry(dev, index, max_retries=2):
             """Collect metrics with retry logic for failed devices"""
             for attempt in range(max_retries + 1):
-                result = await bounded_collect(dev)
+                try:
+                    # 2-minute hard timeout per device to prevent infinite hangs
+                    result = await asyncio.wait_for(
+                        bounded_collect(dev, index if attempt == 0 else 0),
+                        timeout=120
+                    )
+                except asyncio.TimeoutError:
+                    result = {"device": dev.name, "status": "failed", "error": f"Device collection timed out after 120s"}
                 
                 # If successful, return immediately
                 if isinstance(result, dict) and result.get("status") == "success":
@@ -175,7 +184,7 @@ class CollectionService:
                     ])
                     
                     if retryable:
-                        wait_time = 3 * (attempt + 1)  # 3s, 6s backoff
+                        wait_time = 10 * (2 ** attempt)  # 10s, 20s exponential backoff
                         logger.info(f"Retry {attempt + 1}/{max_retries} for {dev.name} after {wait_time}s: {error_msg[:80]}")
                         await asyncio.sleep(wait_time)
                     else:
@@ -185,8 +194,8 @@ class CollectionService:
             return result
                 
         tasks = [
-            collect_with_retry(device)
-            for device in devices
+            collect_with_retry(device, i)
+            for i, device in enumerate(devices)
         ]
         
         results = await asyncio.gather(*tasks, return_exceptions=True)

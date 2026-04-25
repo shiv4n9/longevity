@@ -2,6 +2,8 @@ import asyncio
 import paramiko
 import time
 import logging
+import signal
+from functools import wraps
 import threading
 from typing import Dict, List, Tuple, Optional
 
@@ -143,20 +145,29 @@ class SSHService:
         commands: List[Tuple[str, str]],
         device_name: str,
         routing: str = "double-hop",
+        timeout: int = 120,
     ) -> Dict[str, str]:
         lock = self.pool.get_lock(device_hostname)
         async with lock:
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(
-                None,
-                self._execute_commands_sync,
-                device_hostname,
-                device_username,
-                device_password,
-                commands,
-                device_name,
-                routing,
-            )
+            try:
+                return await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        self._execute_commands_sync,
+                        device_hostname,
+                        device_username,
+                        device_password,
+                        commands,
+                        device_name,
+                        routing,
+                    ),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"SSH execution timed out after {timeout}s for {device_name}")
+                self.pool.remove_device_shell(device_hostname)
+                raise Exception(f"SSH execution failed for {device_name}: timed out after {timeout}s")
 
     def _read_until_prompt(self, shell: paramiko.Channel, timeout: int = 6) -> str:
         """Reads from stdout until common CLI prompts or timeout."""
@@ -230,12 +241,16 @@ class SSHService:
                         device_hostname,
                         username=device_username,
                         password=device_password,
-                        timeout=10,
-                        banner_timeout=10,
-                        auth_timeout=10,
+                        timeout=15,
+                        banner_timeout=15,
+                        auth_timeout=15,
                         look_for_keys=False,
                         allow_agent=False,
                     )
+                    # Enable SSH keepalive to prevent idle disconnects
+                    transport = direct_ssh.get_transport()
+                    if transport:
+                        transport.set_keepalive(30)
                     self.pool.set_jump_conn(device_hostname, direct_ssh)
                     shell = direct_ssh.invoke_shell()
                     self._read_until_prompt(shell, timeout=10)
@@ -258,6 +273,10 @@ class SSHService:
                             look_for_keys=False,
                             allow_agent=False,
                         )
+                        # Enable SSH keepalive to prevent idle disconnects
+                        transport = jump_ssh.get_transport()
+                        if transport:
+                            transport.set_keepalive(30)
                         self.pool.set_jump_conn(device_hostname, jump_ssh)
 
                     shell = jump_ssh.invoke_shell()
